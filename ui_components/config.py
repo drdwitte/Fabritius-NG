@@ -1,0 +1,4 @@
+TITLE = 'Hensor Workbench'
+SUBTITLE = 'an AI-powered CMS'
+BUTTON_LABELS = ['SEARCH', 'DETAIL', 'LABEL', 'CHAT', 'INSIGHTS']
+LOGIN_LABEL = 'LOGIN'
