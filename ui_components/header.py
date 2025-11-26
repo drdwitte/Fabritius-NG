@@ -24,8 +24,8 @@ class HeaderBuilder:
         self.buttons.append((label, on_click))
         return self
 
-    def with_login_button(self, label):
-        self.login_button = label
+    def with_login_button(self, label, on_click):
+        self.login_button = (label, on_click)
         return self
 
     def build(self):
@@ -46,4 +46,8 @@ class HeaderBuilder:
                     ui.button(label, on_click=lambda l=label, f=on_click: f(l)).props('color=none text-color=none').classes('bg-white text-[#8b4513] font-bold px-4 py-2 rounded')
                 # Login button with distinct style
                 if self.login_button:
-                    ui.button(self.login_button, on_click=lambda: print('Login clicked!')).props('color=none text-color=none').classes('bg-[#8b4513] text-white font-bold px-4 py-2 rounded')
+                    label, on_click = self.login_button
+                    ui.button(
+                        label,
+                        on_click=(lambda l=label: on_click(l)) if on_click else None
+                    ).props('color=none text-color=none').classes('bg-[#8b4513] text-white font-bold px-4 py-2 rounded')
