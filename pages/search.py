@@ -6,23 +6,32 @@ pipeline = [
     'Metadata Filter',
     'Semantic Search',
     'Similarity Search'
-]  # list of operators in the current pipeline
+]  # List of operators in the current pipeline
 
-pipeline_bar = None  # this is where the pipeline visualization will be rendered
-pipeline_area = None #this is where the pipeline operators will be rendered, is this the OPERATOR LIST or OPERATOR CHAIN? 
+pipeline_area = None  # This is where the pipeline operators will be rendered
 
 def get_pipeline():
+    """
+    Returns the current pipeline (list of operators).
+    """
     global pipeline
     return pipeline
 
 def add_operator(op_name: str):
+    """
+    Adds an operator to the pipeline and re-renders the pipeline.
+    """
     pipeline = get_pipeline()
-    pipeline.append(op_name)
-    ui.notify(f'Added {op_name}')
-    render_pipeline()
+    pipeline.append(op_name)  # Add the operator to the pipeline
+    ui.notify(f'Added {op_name}')  # Notify the user
+    render_pipeline()  # Re-render the pipeline to reflect the changes
 
 def render_search(ui):
+    """
+    Renders the main search page, including the operator library and the pipeline area.
+    """
     global pipeline_area
+    # Load Sortable.js for drag-and-drop functionality
     ui.add_head_html("<script src=\"https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js\"></script>")    
 
     # Title & icon
@@ -30,46 +39,44 @@ def render_search(ui):
         ui.icon('search').classes('text-2xl text-amber-700')
         ui.label('Search Pipeline').classes('text-2xl font-bold')
 
-    # Top bar: full width, left input, right buttons (this is the bar in which you can load/save pipelines and run them)
+    # Top bar: full width, left input, right buttons
     with ui.row().props('flat').classes('w-full flex items-center justify-between bg-white shadow-sm px-4 py-2 mb-4 rounded'):
         # Left: input field
-        ( 
+        (
             ui.element('input')
                 .props('type=text placeholder="Pipeline name" value="Untitled Pipeline"')
                 .classes(
                     'h-9 w-64 rounded-md border border-gray-300 bg-white '
                     'px-3 py-1 shadow-sm text-gray-800 placeholder-gray-400 '
                     'focus:outline-none focus:ring-1 focus:ring-gray-400'
-                ) #focus: activates border when clicking on text field  
+                )
         )
-     
         # Right: buttons
         with ui.row().classes('gap-2'):
             icon_button('folder_open', 'Load', lambda: ui.notify('Load clicked'))
             icon_button('save', 'Save', lambda: ui.notify('Save clicked'))
             run_button('Run', lambda: ui.notify('Run clicked'))
     
-    # Layout: second row with the main content: operator library + operator chain + results preview
+    # Layout: operator library + operator chain + results preview
     with ui.row().classes('w-full'):
         # Sidebar (left), titled OPERATOR LIBRARY
         with ui.column().classes('w-80 p-4 bg-gray-50 rounded-xl gap-4'):
             ui.label('OPERATOR LIBRARY').classes('text-sm font-bold text-gray-600 mb-2')
 
-            # Use the centralized OPERATORS configuration
+            # Render operator cards from the centralized OPERATORS configuration
             for operator_name in OPERATORS.keys():
                 operator_card(operator_name, lambda op=operator_name: add_operator(op))
 
         # Main content (right)
         with ui.column().classes('flex-grow p-4'):
             ui.label('OPERATOR CHAIN').classes('text-xl font-bold mb-2')
-            pipeline_area = ui.element('div').props('id=pipeline-area')
-            render_pipeline()
+            pipeline_area = ui.element('div').props('id=pipeline-area')  # Define the pipeline area
+            render_pipeline()  # Render the pipeline
             ui.label('Results will appear here...')
 
 def icon_button(icon_name, label, on_click, bg='bg-white', text='text-gray-700', border='border-gray-300'):
     """
-    Icon button component with customizable icon, label, and click behavior 
-    => this is used for LOAD/SAVE currently
+    Creates an icon button with customizable icon, label, and click behavior.
     """
     btn = ui.button(on_click=on_click)
     btn.props('color=none text-color=none')
@@ -82,7 +89,7 @@ def icon_button(icon_name, label, on_click, bg='bg-white', text='text-gray-700',
 
 def run_button(label, on_click):
     """
-    Run button component with play icon, label, and click behavior (used for running the pipeline:)    
+    Creates a run button with a play icon, label, and click behavior.
     """
     btn = ui.button(on_click=on_click)
     btn.props('color=none text-color=none')
@@ -92,10 +99,10 @@ def run_button(label, on_click):
         ui.icon('play_arrow').classes('text-white text-lg')
         ui.label(label).classes('text-white text-base font-bold').style('text-transform: none; margin-left: 10px;')
     return btn
- 
+
 def operator_card(operator_name, on_add):
     """
-    Operator card component (uses the centralized OPERATORS configuration)
+    Creates an operator card using the centralized OPERATORS configuration.
     """
     operator = OPERATORS[operator_name]
     with ui.row().classes('w-full items-center gap-3 p-3 rounded-lg bg-white shadow hover:bg-gray-100 transition'):
@@ -115,13 +122,18 @@ def operator_card(operator_name, on_add):
         ) 
 
 def render_pipeline():
-    active_operator = 0  # Index of the currently active operator (for styling purposes)
-    global pipeline_area  # Area where the pipeline operators will be rendered
-    pipeline_area.clear()  # Clear previous content
-    pipeline = get_pipeline()  # Get current pipeline operators (operators states kept in a global variable)
+    """
+    Renders the pipeline area with all operators as tiles.
+    """
+    global pipeline_area
+    pipeline = get_pipeline()  # Get the current pipeline
 
+    # Clear the pipeline area before re-rendering
+    if pipeline_area is not None:
+        pipeline_area.clear()
+
+    # Create a new container for the pipeline
     with pipeline_area:
-        # div in which the pipeline operators will be rendered
         pipeline_container = (
             ui.element('div')
             .props('id=pipeline-container')
@@ -129,33 +141,50 @@ def render_pipeline():
         )
 
         with pipeline_container:
-            for idx, op in enumerate(pipeline):
+            for op in pipeline:
                 operator = OPERATORS.get(op, {'icon': 'tune', 'description': 'Unknown operator'})
                 icon = operator['icon']
 
-                if idx == active_operator:
-                    tile_classes = f'flex flex-col gap-0 px-2 py-2 rounded-xl border bg-white shadow-sm border-[{BROWN}] min-w-[180px]'
-                else:
-                    tile_classes = 'flex flex-col gap-0 px-2 py-2 rounded-xl bg-white shadow-sm min-w-[180px]'
+                # Create a tile for the operator
+                tile = ui.element('div').classes(
+                    'flex flex-col gap-0 px-2 py-2 rounded-xl bg-white shadow-sm min-w-[180px]'
+                )
 
-                with ui.element('div').classes(tile_classes):
+                with tile:
                     with ui.row().classes('items-center w-full'):
                         ui.icon('drag_indicator').classes('text-xl text-gray-400 cursor-move')
                         ui.icon(icon).classes('text-xl text-gray-700')
                         ui.label(op).classes('text-gray-800 font-medium ml-2')
+                        # Delete icon with proper closure
+                        ui.icon('delete').classes('text-xl text-red-500 cursor-pointer ml-auto').on(
+                            'click', lambda _, name=op, t=tile: delete_operator_by_name(name, t)
+                        )
+
+                    # Additional operator details
                     ui.label("param1: value").classes('text-sm text-gray-400 italic w-full mt-2')
                     ui.label("param2: value").classes('text-sm text-gray-400 italic w-full')
                     ui.label("89 results").classes(
-                        f'inline-block mt-3 px-2 py-1 text-xs font-medium '
-                        f'rounded-md bg-[{BROWN}] text-white'
+                        f'inline-block mt-3 px-2 py-1 text-xs font-medium rounded-md bg-[{BROWN}] text-white'
                     )
 
+    # Reinitialize Sortable.js for drag-and-drop functionality
     ui.run_javascript("""
     new Sortable(document.getElementById('pipeline-container'), {
         animation: 150,
         ghostClass: 'opacity-50'
     });
     """)
+
+def delete_operator_by_name(op_name: str, tile):
+    """
+    Deletes an operator from the pipeline by name and removes its tile from the UI.
+    """
+    pipeline = get_pipeline()
+    if op_name in pipeline:
+        pipeline.remove(op_name)  # Remove the operator from the pipeline
+    tile.delete()  # Remove the tile directly from the DOM
+    ui.notify(f'Removed {op_name}')  # Notify the user
+    render_pipeline()  # Re-render the pipeline
 
 
 
