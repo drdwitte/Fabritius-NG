@@ -297,16 +297,41 @@ def show_operator_config(op_name: str):
         
         # Fake parameters (placeholder for future implementation)
         ui.label('PARAMETERS').classes('text-sm font-bold text-gray-600 mb-3')
+
+        # Special handling for Sketch Search operator
+        if op_name == 'Sketch Search':
+            ui.label('Draw your sketch:').classes('text-sm mb-2')
+            
+            # For now, use a placeholder until we can implement a working sketch solution
+            with ui.card().classes('w-full h-64 border border-gray-300 rounded-lg mb-4 bg-gray-50 flex items-center justify-center'):
+                with ui.column().classes('items-center gap-3'):
+                    ui.icon('brush', size='xl').classes('text-gray-400')
+                    ui.label('Sketch functionality').classes('text-gray-500 font-medium')
+                    ui.label('(Interactive drawing will be added later)').classes('text-gray-400 text-sm')
         
-        ui.label('Parameter 1')
-        ui.input(placeholder='Enter value').classes('w-full mb-4')
+            # Sketch controls (UI only for now)
+            with ui.row().classes('w-full gap-2 mb-4 items-center'):
+                ui.label('Color:').classes('text-sm')
+                ui.color_picker().classes('h-8')
+                
+                ui.label('Size:').classes('text-sm ml-4')
+                ui.slider(min=1, max=10, value=3).classes('w-24')
+                
+                ui.button('Clear', icon='delete').props('flat size=sm color=red')
         
-        ui.label('Parameter 2')
-        ui.input(placeholder='Enter value').classes('w-full mb-4')
-        
-        ui.label('Parameter 3')
-        ui.select(['Option 1', 'Option 2', 'Option 3'], value='Option 1').classes('w-full mb-4')
-        
+            ui.label('Additional Settings').classes('text-sm font-bold text-gray-600 mb-2 mt-4')
+            ui.slider(min=1, max=100, value=50).props('label="Similarity Threshold"').classes('w-full')
+        else:
+            # Default parameters for other operators
+            ui.label('Parameter 1')
+            ui.input(placeholder='Enter value').classes('w-full mb-4')
+            
+            ui.label('Parameter 2')
+            ui.input(placeholder='Enter value').classes('w-full mb-4')
+            
+            ui.label('Parameter 3')
+            ui.select(['Option 1', 'Option 2', 'Option 3'], value='Option 1').classes('w-full mb-4')
+
         # Action buttons
         with ui.row().classes('w-full justify-end gap-2 mt-6'):
             ui.button('Cancel', on_click=close_panel).props('flat color=grey')
