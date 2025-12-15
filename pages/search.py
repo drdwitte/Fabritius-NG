@@ -55,47 +55,9 @@ def render_search(ui):
         with ui.column().classes('w-80 p-4 bg-gray-50 rounded-xl gap-4'):
             ui.label('OPERATOR LIBRARY').classes('text-sm font-bold text-gray-600 mb-2')
 
-            operator_card(
-                'filter_alt',
-                'Metadata Filter',
-                'Filter artworks by metadata attributes',
-                lambda: add_operator('Metadata Filter')
-            )
-       
-            operator_card(
-                'search',
-                'Semantic Search',
-                'Text-based semantic search using AI',
-                lambda: add_operator('Semantic Search')
-            )
-
-            operator_card(
-                'library_books',
-                'Similarity Search',
-                'Find visually similar artworks',
-                lambda: add_operator('Similarity Search')
-            )
-
-            operator_card(
-                'palette',
-                'Color Filter',
-                'Filter artworks by color attributes',
-                lambda: add_operator('Color Filter')
-            )
-
-            operator_card(
-                'accessibility_new',
-                'Pose Search',
-                'Find artworks with similar human poses',
-                lambda: add_operator('Pose Search')
-            )
-
-            operator_card(
-                'brush',
-                'Sketch Search',
-                'Search by drawing or uploading a sketch',
-                lambda: add_operator('Sketch Search')
-            )
+            # Use the centralized OPERATORS configuration
+            for operator_name in OPERATORS.keys():
+                operator_card(operator_name, lambda op=operator_name: add_operator(op))
 
         # Main content (right)
         with ui.column().classes('flex-grow p-4'):
@@ -131,20 +93,21 @@ def run_button(label, on_click):
         ui.label(label).classes('text-white text-base font-bold').style('text-transform: none; margin-left: 10px;')
     return btn
  
-def operator_card(icon, title, description, on_add):
+def operator_card(operator_name, on_add):
     """
-    Operator card component (for example 'Semantic Search'is (icon, title, description, and operator on_add)
+    Operator card component (uses the centralized OPERATORS configuration)
     """
+    operator = OPERATORS[operator_name]
     with ui.row().classes('w-full items-center gap-3 p-3 rounded-lg bg-white shadow hover:bg-gray-100 transition'):
-        # operator icon 
-        ui.icon(icon).classes(f'text-3xl text-[{BROWN}]')
+        # Operator icon
+        ui.icon(operator['icon']).classes(f'text-3xl text-[{BROWN}]')
         
-        # operator title + description
+        # Operator title + description
         with ui.column().classes('flex-1 items-start gap-0'):
-            ui.label(title).classes('text-base font-bold text-gray-800 mb-0')
-            ui.label(description).classes('text-xs text-gray-500 mt-0')
+            ui.label(operator_name).classes('text-base font-bold text-gray-800 mb-0')
+            ui.label(operator['description']).classes('text-xs text-gray-500 mt-0')
         
-        # plus button to add operator
+        # Plus button to add operator
         (
             ui.button(icon='add', on_click=on_add)
                 .props('round color=none text-color=none')
@@ -152,15 +115,13 @@ def operator_card(icon, title, description, on_add):
         ) 
 
 def render_pipeline():
-    
-    active_operator = 0 # Index of the currently active operator (for styling purposes)
-    global pipeline_area # Area where the pipeline operators will be rendered
-    pipeline_area.clear() # Clear previous content
-    pipeline = get_pipeline() # Get current pipeline operators (operators states kept in a global variable)
+    active_operator = 0  # Index of the currently active operator (for styling purposes)
+    global pipeline_area  # Area where the pipeline operators will be rendered
+    pipeline_area.clear()  # Clear previous content
+    pipeline = get_pipeline()  # Get current pipeline operators (operators states kept in a global variable)
 
     with pipeline_area:
-
-        #div in which the pipeline operators will be rendered
+        # div in which the pipeline operators will be rendered
         pipeline_container = (
             ui.element('div')
             .props('id=pipeline-container')
@@ -169,11 +130,8 @@ def render_pipeline():
 
         with pipeline_container:
             for idx, op in enumerate(pipeline):
-                icon = {
-                    'Metadata Filter': 'filter_alt',
-                    'Semantic Search': 'search',
-                    'Similarity Search': 'library_books'
-                }.get(op, 'tune')
+                operator = OPERATORS.get(op, {'icon': 'tune', 'description': 'Unknown operator'})
+                icon = operator['icon']
 
                 if idx == active_operator:
                     tile_classes = f'flex flex-col gap-0 px-2 py-2 rounded-xl border bg-white shadow-sm border-[{BROWN}] min-w-[180px]'
