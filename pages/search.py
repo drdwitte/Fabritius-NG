@@ -2,7 +2,12 @@ from nicegui import ui, app
 from ui_components.config import BROWN, OPERATORS
 import json
 import uuid
+import logging
 from typing import List, Dict, Optional
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # TODO: Future refactoring - Class-based operators
 # Currently operators are identified by name strings (e.g., 'Metadata Filter').
@@ -48,6 +53,7 @@ class PipelineState:
             'params': {}
         }
         self._operators.append(operator)
+        logger.info(f"Added '{operator_name}': {[op['name'] for op in self._operators]}")
         return operator_id
     
     def remove_operator(self, operator_id: str) -> bool:
@@ -57,7 +63,9 @@ class PipelineState:
         """
         index = self._find_index(operator_id)
         if index != -1:
+            removed_name = self._operators[index]['name']
             self._operators.pop(index)
+            logger.info(f"Removed '{removed_name}': {[op['name'] for op in self._operators]}")
             return True
         return False
     
@@ -96,6 +104,8 @@ class PipelineState:
         id_to_operator = {op['id']: op for op in self._operators}
         # Rebuild the operator list in the new order
         self._operators = [id_to_operator[op_id] for op_id in new_order if op_id in id_to_operator]
+        logger.info(f"Reordered: {[op['name'] for op in self._operators]}")
+        print(f"[Pipeline] Reordered: {[op['name'] for op in self._operators]}")
     
     def clear(self):
         """Removes all operators from the pipeline."""
@@ -122,13 +132,38 @@ pipeline_state.add_operator('Similarity Search')
 ############### FRONT-END ##################
 ############################################
 
+# The main function in front-end are: 
+# - render_search: renders the main search page with operator library and pipeline area
+# - render_pipeline: renders the current pipeline in the pipeline area
+# - show_operator_config: shows the configuration panel for a selected operator
+
 # Global UI references
 pipeline_area = None  # The UI area where the pipeline is rendered (with operator tiles, delete and drag buttons)
 pipeline_name_input = None  # Reference to UI element with the name input field
 config_panel = None  # Reference to UI Config panel: right-hand side panel for configuration of operators
 
-def save_pipeline(pipeline_name_input):
+async def sync_from_dom():
+    """Syncs the pipeline state from the DOM order (DOM is source of truth)."""
+    # Use JavaScript to read the current order from DOM
+    result = await ui.run_javascript('''
+        const container = document.getElementById('pipeline-container');
+        if (container) {
+            return Array.from(container.children)
+                .map(tile => tile.getAttribute('data-operator-id'))
+                .filter(id => id !== null);
+        }
+        return [];
+    ''', timeout=1.0)
+    
+    if result:
+        pipeline_state.reorder(result)
+        logger.info(f"Synced from DOM: {[op['name'] for op in pipeline_state.get_all_operators()]}")
+
+async def save_pipeline(pipeline_name_input):
     """Shows a dialog to save the pipeline with a custom filename."""
+    # Sync state from DOM before saving
+    await sync_from_dom()
+    
     # Get the pipeline name from the input field, or use default
     suggested_name = pipeline_name_input.value.strip() if pipeline_name_input and pipeline_name_input.value.strip() else 'Untitled Pipeline'
     
@@ -191,6 +226,7 @@ def render_search(ui):
     Renders the main search page, including the operator library and the pipeline area.
     """
     global pipeline_area, pipeline_name_input
+    
     # Load Sortable.js for drag-and-drop functionality
     ui.add_head_html("<script src=\"https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js\"></script>")    
 
@@ -274,7 +310,7 @@ def operator_card(operator_name, on_add):
             ui.button(icon='add', on_click=on_add)
                 .props('round color=none text-color=none')
                 .classes(f'bg-[{BROWN}] text-white ml-auto text-xs p-0')
-        ) 
+        )
 
 def render_pipeline():
     """
@@ -303,9 +339,11 @@ def render_pipeline():
                 icon = operator['icon']
 
                 # Create a tile for the operator
-                tile = ui.element('div').classes(
-                    'flex flex-col gap-0 px-2 py-2 rounded-xl bg-white shadow-sm min-w-[180px] cursor-pointer hover:shadow-md transition'
-                ).on('click', lambda _, name=op_name: show_operator_config(name))
+                tile = (ui.element('div')
+                    .classes('flex flex-col gap-0 px-2 py-2 rounded-xl bg-white shadow-sm min-w-[180px] cursor-pointer hover:shadow-md transition')
+                    .props(f'data-operator-id="{op_id}"')
+                    .on('click', lambda _, name=op_name: show_operator_config(name))
+                )
 
                 with tile:
                     with ui.row().classes('items-center w-full'):
