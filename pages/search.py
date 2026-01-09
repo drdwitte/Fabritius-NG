@@ -1,42 +1,134 @@
 from nicegui import ui, app
 from ui_components.config import BROWN, OPERATORS
 import json
+import uuid
+from typing import List, Dict, Optional
 
-# Global variable (these are the initial operators in the pipeline upon loading the page)
-pipeline = [
-    'Metadata Filter',
-    'Semantic Search',
-    'Similarity Search'
-]  # List of operators in the current pipeline
+# TODO: Future refactoring - Class-based operators
+# Currently operators are identified by name strings (e.g., 'Metadata Filter').
+# Future improvement: Create operator classes with execute() methods that can be
+# mapped from operator names (Strategy pattern). This allows each operator type
+# to have its own implementation logic while maintaining the same interface.
+# Example: OPERATOR_CLASSES = {'Metadata Filter': MetadataFilterOperator, ...}
 
-pipeline_area = None  # This is where the pipeline operators will be rendered
-pipeline_name_input = None  # Reference to the pipeline name input field
-selected_operator = None  # Currently selected operator for configuration
-config_panel = None  # Configuration panel reference
+############################################
+############### BACK-END ###################
+############################################
 
-def get_pipeline():
+class PipelineState:
     """
-    Returns the current pipeline (list of operators).
+    Manages the state of the search pipeline.
+    Each operator instance has a unique ID and can store parameters.
     """
-    global pipeline
-    return pipeline
-
-def add_operator(op_name: str):
-    """
-    Adds an operator to the pipeline and re-renders the pipeline.
-    """
-    pipeline = get_pipeline()
-    pipeline.append(op_name)  # Add the operator to the pipeline
-    ui.notify(f'Added {op_name}')  # Notify the user
-    render_pipeline()  # Re-render the pipeline to reflect the changes
-
-def save_pipeline():
-    """
-    Shows a dialog to save the pipeline with a custom filename.
-    """
-    global pipeline_name_input
-    pipeline = get_pipeline()
     
+    def __init__(self):
+        self._operators: List[Dict] = []
+    
+    def _find_index(self, operator_id: str) -> int:
+        """
+        Private helper: finds the index of an operator by ID.
+        Returns -1 if not found.
+        """
+        for i, op in enumerate(self._operators):
+            if op['id'] == operator_id:
+                return i
+        return -1
+    
+    def add_operator(self, operator_name: str) -> str:
+        """
+        Adds an operator to the pipeline.
+        Returns the unique ID of the operator instance.
+        """
+        # Generate a unique ID for the operator, 
+        # 2 operators with same name can coexist and will have different IDs
+        operator_id = str(uuid.uuid4())
+        operator = {
+            'id': operator_id,
+            'name': operator_name,
+            'params': {}
+        }
+        self._operators.append(operator)
+        return operator_id
+    
+    def remove_operator(self, operator_id: str) -> bool:
+        """
+        Removes an operator by ID.
+        Returns True if removed, False if not found.
+        """
+        index = self._find_index(operator_id)
+        if index != -1:
+            self._operators.pop(index)
+            return True
+        return False
+    
+    def get_operator(self, operator_id: str) -> Optional[Dict]:
+        """
+        Gets a single operator by ID.
+        Returns a copy to prevent external mutation.
+        """
+        index = self._find_index(operator_id)
+        if index != -1:
+            return self._operators[index].copy()
+        return None
+    
+    def get_all_operators(self) -> List[Dict]:
+        """Returns a copy of all operators."""
+        # op.copy makes a copy of each operator dict to prevent external mutation
+        return [op.copy() for op in self._operators]
+    
+    def update_params(self, operator_id: str, params: Dict) -> bool:
+        """
+        Updates the parameters of an operator.
+        Returns True if updated, False if not found.
+        """
+        index = self._find_index(operator_id)
+        if index != -1:
+            self._operators[index]['params'].update(params)
+            return True
+        return False
+    
+    def reorder(self, new_order: List[str]):
+        """
+        Reorders operators based on a list of IDs.
+        Missing IDs are ignored.
+        """
+        #id_to_operator is a mapping to new index in operator List (uid -> operator dict)
+        id_to_operator = {op['id']: op for op in self._operators}
+        # Rebuild the operator list in the new order
+        self._operators = [id_to_operator[op_id] for op_id in new_order if op_id in id_to_operator]
+    
+    def clear(self):
+        """Removes all operators from the pipeline."""
+        self._operators = []
+    
+    def to_json(self) -> str:
+        """Export pipeline to JSON string."""
+        return json.dumps(self._operators, indent=2)
+    
+    def from_json(self, json_string: str):
+        """Import pipeline from JSON string."""
+        self._operators = json.loads(json_string)
+
+# Global state instance
+pipeline_state = PipelineState()
+
+# Initialize with default operators (NOTE: we will refactor this into class based operators later)
+pipeline_state.add_operator('Metadata Filter')
+pipeline_state.add_operator('Semantic Search')
+pipeline_state.add_operator('Similarity Search')
+
+
+############################################
+############### FRONT-END ##################
+############################################
+
+# Global UI references
+pipeline_area = None  # The UI area where the pipeline is rendered (with operator tiles, delete and drag buttons)
+pipeline_name_input = None  # Reference to UI element with the name input field
+config_panel = None  # Reference to UI Config panel: right-hand side panel for configuration of operators
+
+def save_pipeline(pipeline_name_input):
+    """Shows a dialog to save the pipeline with a custom filename."""
     # Get the pipeline name from the input field, or use default
     suggested_name = pipeline_name_input.value.strip() if pipeline_name_input and pipeline_name_input.value.strip() else 'Untitled Pipeline'
     
@@ -51,7 +143,7 @@ def save_pipeline():
             filename += '.json'
         
         try:
-            pipeline_json = json.dumps(pipeline, indent=2)
+            pipeline_json = pipeline_state.to_json()
             ui.download(pipeline_json.encode('utf-8'), filename)
             ui.notify(f'Saving {filename}...')
             dialog.close()
@@ -72,23 +164,19 @@ def save_pipeline():
         
         with ui.row().classes('w-full justify-end gap-2 mt-6'):
             ui.button('Cancel', on_click=dialog.close).props('flat color=grey')
-            ui.button('Save', on_click=handle_save).props('color=primary')
+            ui.button('Save', on_click=handle_save).props('color=none text-color=none').classes(f'bg-[{BROWN}] text-white')
     
     dialog.open()
 
-async def load_pipeline():
-    """
-    Opens a file dialog to load a pipeline from a JSON file.
-    """
-    global pipeline
-    
+async def load_pipeline(on_complete_callback):
+    """Opens a file dialog to load a pipeline from a JSON file."""
     async def handle_upload(e):
         """Handle the uploaded file"""
         try:
             content = e.content.read().decode('utf-8')
-            pipeline = json.loads(content)
+            pipeline_state.from_json(content)
             ui.notify('Pipeline loaded successfully!')
-            render_pipeline()
+            on_complete_callback()  # Call the callback to re-render
         except Exception as ex:
             ui.notify(f'Error loading pipeline: {str(ex)}')
     
@@ -120,8 +208,8 @@ def render_search(ui):
         ).props('borderless dense').classes('w-64')
         # Right: buttons
         with ui.row().classes('gap-2'):
-            icon_button('folder_open', 'Load', load_pipeline)
-            icon_button('save', 'Save', save_pipeline)
+            icon_button('folder_open', 'Load', lambda: load_pipeline(render_pipeline))
+            icon_button('save', 'Save', lambda: save_pipeline(pipeline_name_input))
             run_button('Run', lambda: ui.notify('Run clicked'))
     
     # Layout: operator library + operator chain + results preview
@@ -132,7 +220,7 @@ def render_search(ui):
 
             # Render operator cards from the centralized OPERATORS configuration
             for operator_name in OPERATORS.keys():
-                operator_card(operator_name, lambda op=operator_name: add_operator(op))
+                operator_card(operator_name, lambda op=operator_name: (pipeline_state.add_operator(op), ui.notify(f'Added {op}'), render_pipeline()))
 
         # Main content (right)
         with ui.column().classes('flex-grow p-4'):
@@ -193,7 +281,7 @@ def render_pipeline():
     Renders the pipeline area with all operators as tiles.
     """
     global pipeline_area
-    pipeline = get_pipeline()  # Get the current pipeline
+    pipeline = pipeline_state.get_all_operators()  # Get the current pipeline
 
     # Clear the pipeline area before re-rendering
     if pipeline_area is not None:
@@ -208,23 +296,25 @@ def render_pipeline():
         )
 
         with pipeline_container:
-            for op in pipeline:
-                operator = OPERATORS.get(op, {'icon': 'tune', 'description': 'Unknown operator'})
+            for op_data in pipeline:
+                op_id = op_data['id']
+                op_name = op_data['name']
+                operator = OPERATORS.get(op_name, {'icon': 'tune', 'description': 'Unknown operator'})
                 icon = operator['icon']
 
                 # Create a tile for the operator
                 tile = ui.element('div').classes(
                     'flex flex-col gap-0 px-2 py-2 rounded-xl bg-white shadow-sm min-w-[180px] cursor-pointer hover:shadow-md transition'
-                ).on('click', lambda _, name=op: show_operator_config(name))
+                ).on('click', lambda _, name=op_name: show_operator_config(name))
 
                 with tile:
                     with ui.row().classes('items-center w-full'):
                         ui.icon('drag_indicator').classes('text-xl text-gray-400 cursor-move')
                         ui.icon(icon).classes('text-xl text-gray-700')
-                        ui.label(op).classes('text-gray-800 font-medium ml-2')
+                        ui.label(op_name).classes('text-gray-800 font-medium ml-2')
                         # Delete icon with proper closure to avoid issues with lambda variable binding
                         ui.icon('delete').classes('text-xl text-red-500 cursor-pointer ml-auto').on(
-                            'click', lambda _, name=op, t=tile: delete_operator_by_name(name, t)
+                            'click', lambda _, op_id=op_id, name=op_name, t=tile: delete_operator_by_id(op_id, name, t)
                         )
 
                     # Additional operator details
@@ -242,17 +332,16 @@ def render_pipeline():
     });
     """)
 
-def delete_operator_by_name(op_name: str, tile):
+def delete_operator_by_id(operator_id: str, op_name: str, tile):
     """
-    Deletes an operator from the pipeline by name and removes its tile from the UI.
+    Deletes an operator from the pipeline by ID and removes its tile from the UI.
     
     Args:
-        op_name: The name of the operator to delete
+        operator_id: The unique ID of the operator to delete
+        op_name: The name of the operator (for notification)
         tile: The UI tile element to remove from the DOM
     """
-    pipeline = get_pipeline()
-    if op_name in pipeline:
-        pipeline.remove(op_name)  # Remove the operator from the pipeline
+    pipeline_state.remove_operator(operator_id)  # Remove the operator from the pipeline
     tile.delete()  # Remove the tile directly from the DOM
     ui.notify(f'Removed {op_name}')  # Notify the user
     render_pipeline()  # Re-render the pipeline
@@ -295,42 +384,17 @@ def show_operator_config(op_name: str):
             ui.icon(operator.get('icon', 'tune')).classes(f'text-2xl text-[{BROWN}]')
             ui.label(operator.get('description', 'No description')).classes('text-sm text-gray-600')
         
-        # Fake parameters (placeholder for future implementation)
+        # Parameters
         ui.label('PARAMETERS').classes('text-sm font-bold text-gray-600 mb-3')
-
-        # Special handling for Sketch Search operator
-        if op_name == 'Sketch Search':
-            ui.label('Draw your sketch:').classes('text-sm mb-2')
-            
-            # For now, use a placeholder until we can implement a working sketch solution
-            with ui.card().classes('w-full h-64 border border-gray-300 rounded-lg mb-4 bg-gray-50 flex items-center justify-center'):
-                with ui.column().classes('items-center gap-3'):
-                    ui.icon('brush', size='xl').classes('text-gray-400')
-                    ui.label('Sketch functionality').classes('text-gray-500 font-medium')
-                    ui.label('(Interactive drawing will be added later)').classes('text-gray-400 text-sm')
         
-            # Sketch controls (UI only for now)
-            with ui.row().classes('w-full gap-2 mb-4 items-center'):
-                ui.label('Color:').classes('text-sm')
-                ui.color_picker().classes('h-8')
-                
-                ui.label('Size:').classes('text-sm ml-4')
-                ui.slider(min=1, max=10, value=3).classes('w-24')
-                
-                ui.button('Clear', icon='delete').props('flat size=sm color=red')
+        ui.label('Parameter 1')
+        ui.input(placeholder='Enter value').classes('w-full mb-4')
         
-            ui.label('Additional Settings').classes('text-sm font-bold text-gray-600 mb-2 mt-4')
-            ui.slider(min=1, max=100, value=50).props('label="Similarity Threshold"').classes('w-full')
-        else:
-            # Default parameters for other operators
-            ui.label('Parameter 1')
-            ui.input(placeholder='Enter value').classes('w-full mb-4')
-            
-            ui.label('Parameter 2')
-            ui.input(placeholder='Enter value').classes('w-full mb-4')
-            
-            ui.label('Parameter 3')
-            ui.select(['Option 1', 'Option 2', 'Option 3'], value='Option 1').classes('w-full mb-4')
+        ui.label('Parameter 2')
+        ui.input(placeholder='Enter value').classes('w-full mb-4')
+        
+        ui.label('Parameter 3')
+        ui.select(['Option 1', 'Option 2', 'Option 3'], value='Option 1').classes('w-full mb-4')
 
         # Action buttons
         with ui.row().classes('w-full justify-end gap-2 mt-6'):

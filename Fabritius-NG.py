@@ -14,6 +14,9 @@ from pages.chat import render_chat
 from pages.insights import render_insights
 from pages.login import render_login
 
+import uuid
+from typing import List, Dict, Optional
+
 def navigate_to(label):
     def _navigate(_=None):
         route = '/' if label.lower() == 'search' else f'/{label.lower()}'
