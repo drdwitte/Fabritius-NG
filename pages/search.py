@@ -423,7 +423,11 @@ def show_operator_config(operator_id: str):
     
     # Remove existing panel completely if it exists
     if config_panel:
-        config_panel.delete()
+        try:
+            config_panel.delete()
+        except RuntimeError:
+            # Parent slot was already deleted (e.g., after render_pipeline was called)
+            pass
         config_panel = None
     
     # Create new panel
@@ -435,7 +439,11 @@ def show_operator_config(operator_id: str):
         """Completely remove the config panel"""
         global config_panel
         if config_panel:
-            config_panel.delete()
+            try:
+                config_panel.delete()
+            except RuntimeError:
+                # Parent slot was already deleted
+                pass
             config_panel = None
     
     with config_panel:
