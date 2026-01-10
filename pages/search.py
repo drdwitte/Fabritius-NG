@@ -16,6 +16,9 @@ from typing import List, Dict, Optional
 ############### BACK-END ###################
 ############################################
 
+# Global UI containers
+results_display_container = None
+
 class PipelineState:
     """
     Manages the state of the search pipeline.
@@ -138,6 +141,48 @@ pipeline_state.add_operator('Similarity Search')
 pipeline_area = None  # The UI area where the pipeline is rendered (with operator tiles, delete and drag buttons)
 pipeline_name_input = None  # Reference to UI element with the name input field
 config_panel = None  # Reference to UI Config panel: right-hand side panel for configuration of operators
+results_area = None  # The UI area where search results are displayed
+current_view = 'grid'  # Current results view: 'grid' or 'list'
+
+# Mock data for results preview
+MOCK_RESULTS = {
+    'Metadata Filter': [
+        {'id': '1', 'title': 'Self-Portrait with Flowered Hat', 'artist': 'James Ensor', 'year': '1883', 'inventory': 'ME001', 'image': 'https://loremflickr.com/400/400/painting?lock=1'},
+        {'id': '2', 'title': 'The Entry of Christ into Brussels', 'artist': 'James Ensor', 'year': '1889', 'inventory': 'ME002', 'image': 'https://loremflickr.com/400/400/painting?lock=2'},
+        {'id': '3', 'title': 'Skeletons Fighting Over a Pickled Herring', 'artist': 'James Ensor', 'year': '1891', 'inventory': 'ME003', 'image': 'https://loremflickr.com/400/400/painting?lock=3'},
+        {'id': '4', 'title': 'The Intrigue', 'artist': 'James Ensor', 'year': '1890', 'inventory': 'ME004', 'image': 'https://loremflickr.com/400/400/painting?lock=4'},
+        {'id': '5', 'title': 'Death and the Masks', 'artist': 'James Ensor', 'year': '1897', 'inventory': 'ME005', 'image': 'https://loremflickr.com/400/400/painting?lock=5'},
+        {'id': '6', 'title': 'Woman Eating Oysters', 'artist': 'James Ensor', 'year': '1882', 'inventory': 'ME006', 'image': 'https://loremflickr.com/400/400/painting?lock=6'},
+        {'id': '7', 'title': 'The Cathedral', 'artist': 'James Ensor', 'year': '1886', 'inventory': 'ME007', 'image': 'https://loremflickr.com/400/400/painting?lock=7'},
+        {'id': '8', 'title': 'Russian Music', 'artist': 'James Ensor', 'year': '1881', 'inventory': 'ME008', 'image': 'https://loremflickr.com/400/400/painting?lock=8'},
+        {'id': '9', 'title': 'The Consoling Virgin', 'artist': 'James Ensor', 'year': '1892', 'inventory': 'ME009', 'image': 'https://loremflickr.com/400/400/painting?lock=9'},
+        {'id': '10', 'title': 'Attributes of the Studio', 'artist': 'James Ensor', 'year': '1889', 'inventory': 'ME010', 'image': 'https://loremflickr.com/400/400/painting?lock=10'},
+    ],
+    'Semantic Search': [
+        {'id': '11', 'title': 'The Night Watch', 'artist': 'Rembrandt van Rijn', 'year': '1642', 'inventory': 'SS001', 'image': 'https://loremflickr.com/400/400/art?lock=11'},
+        {'id': '12', 'title': 'The Anatomy Lesson', 'artist': 'Rembrandt van Rijn', 'year': '1632', 'inventory': 'SS002', 'image': 'https://loremflickr.com/400/400/art?lock=12'},
+        {'id': '13', 'title': 'The Jewish Bride', 'artist': 'Rembrandt van Rijn', 'year': '1665', 'inventory': 'SS003', 'image': 'https://loremflickr.com/400/400/art?lock=13'},
+        {'id': '14', 'title': 'Self Portrait', 'artist': 'Rembrandt van Rijn', 'year': '1669', 'inventory': 'SS004', 'image': 'https://loremflickr.com/400/400/art?lock=14'},
+        {'id': '15', 'title': 'The Storm on the Sea', 'artist': 'Rembrandt van Rijn', 'year': '1633', 'inventory': 'SS005', 'image': 'https://loremflickr.com/400/400/art?lock=15'},
+        {'id': '16', 'title': 'Belshazzar\'s Feast', 'artist': 'Rembrandt van Rijn', 'year': '1635', 'inventory': 'SS006', 'image': 'https://loremflickr.com/400/400/art?lock=16'},
+        {'id': '17', 'title': 'The Syndics', 'artist': 'Rembrandt van Rijn', 'year': '1662', 'inventory': 'SS007', 'image': 'https://loremflickr.com/400/400/art?lock=17'},
+        {'id': '18', 'title': 'The Abduction of Europa', 'artist': 'Rembrandt van Rijn', 'year': '1632', 'inventory': 'SS008', 'image': 'https://loremflickr.com/400/400/art?lock=18'},
+        {'id': '19', 'title': 'The Return of the Prodigal Son', 'artist': 'Rembrandt van Rijn', 'year': '1669', 'inventory': 'SS009', 'image': 'https://loremflickr.com/400/400/art?lock=19'},
+        {'id': '20', 'title': 'Danaë', 'artist': 'Rembrandt van Rijn', 'year': '1636', 'inventory': 'SS010', 'image': 'https://loremflickr.com/400/400/art?lock=20'},
+    ],
+    'Similarity Search': [
+        {'id': '21', 'title': 'The Starry Night', 'artist': 'Vincent van Gogh', 'year': '1889', 'inventory': 'SI001', 'image': 'https://loremflickr.com/400/400/museum?lock=21'},
+        {'id': '22', 'title': 'Sunflowers', 'artist': 'Vincent van Gogh', 'year': '1888', 'inventory': 'SI002', 'image': 'https://loremflickr.com/400/400/museum?lock=22'},
+        {'id': '23', 'title': 'Irises', 'artist': 'Vincent van Gogh', 'year': '1889', 'inventory': 'SI003', 'image': 'https://loremflickr.com/400/400/museum?lock=23'},
+        {'id': '24', 'title': 'The Bedroom', 'artist': 'Vincent van Gogh', 'year': '1888', 'inventory': 'SI004', 'image': 'https://loremflickr.com/400/400/museum?lock=24'},
+        {'id': '25', 'title': 'Café Terrace at Night', 'artist': 'Vincent van Gogh', 'year': '1888', 'inventory': 'SI005', 'image': 'https://loremflickr.com/400/400/museum?lock=25'},
+        {'id': '26', 'title': 'Wheatfield with Crows', 'artist': 'Vincent van Gogh', 'year': '1890', 'inventory': 'SI006', 'image': 'https://loremflickr.com/400/400/museum?lock=26'},
+        {'id': '27', 'title': 'Almond Blossoms', 'artist': 'Vincent van Gogh', 'year': '1890', 'inventory': 'SI007', 'image': 'https://loremflickr.com/400/400/museum?lock=27'},
+        {'id': '28', 'title': 'The Potato Eaters', 'artist': 'Vincent van Gogh', 'year': '1885', 'inventory': 'SI008', 'image': 'https://loremflickr.com/400/400/museum?lock=28'},
+        {'id': '29', 'title': 'Self-Portrait', 'artist': 'Vincent van Gogh', 'year': '1889', 'inventory': 'SI009', 'image': 'https://loremflickr.com/400/400/museum?lock=29'},
+        {'id': '30', 'title': 'The Night Café', 'artist': 'Vincent van Gogh', 'year': '1888', 'inventory': 'SI010', 'image': 'https://loremflickr.com/400/400/museum?lock=30'},
+    ]
+}
 
 async def sync_from_dom():
     """Syncs the pipeline state from the DOM order (DOM is source of truth)."""
@@ -222,7 +267,7 @@ def render_search(ui):
     """
     Renders the main search page, including the operator library and the pipeline area.
     """
-    global pipeline_area, pipeline_name_input
+    global pipeline_area, pipeline_name_input, results_area, results_display_container
     
     # Load Sortable.js for drag-and-drop functionality
     ui.add_head_html("<script src=\"https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js\"></script>")    
@@ -246,9 +291,9 @@ def render_search(ui):
             run_button('Run', lambda: ui.notify('Run clicked'))
     
     # Layout: operator library + operator chain + results preview
-    with ui.row().classes('w-full'):
+    with ui.row().classes('w-full gap-4 flex-nowrap'):
         # Sidebar (left), titled OPERATOR LIBRARY
-        with ui.column().classes('w-80 p-4 bg-gray-50 rounded-xl gap-4'):
+        with ui.column().classes('w-64 p-4 bg-gray-50 rounded-xl gap-4 shrink-0'):
             ui.label('OPERATOR LIBRARY').classes('text-sm font-bold text-gray-600 mb-2')
 
             # Render operator cards from the centralized OPERATORS configuration
@@ -256,11 +301,15 @@ def render_search(ui):
                 operator_card(operator_name, lambda op=operator_name: (pipeline_state.add_operator(op), ui.notify(f'Added {op}'), render_pipeline()))
 
         # Main content (right)
-        with ui.column().classes('flex-grow p-4'):
+        with ui.column().classes('flex-1 min-w-0 p-4'):
             ui.label('OPERATOR CHAIN').classes('text-xl font-bold mb-2')
             pipeline_area = ui.element('div').props('id=pipeline-area')  # Define the pipeline area
             render_pipeline()  # Render the pipeline
-            ui.label('Results will appear here...')
+            
+            # Results section
+            ui.label('RESULTS').classes('text-xl font-bold mt-6 mb-2')
+            results_area = ui.element('div').props('id=results-area')
+            render_results_section()
 
 def icon_button(icon_name, label, on_click, bg='bg-white', text='text-gray-700', border='border-gray-300'):
     """
@@ -986,6 +1035,99 @@ def render_conditional_fields(params_schema, param_inputs, existing_params, curr
                 max=max_val,
                 step=step
             ).classes('w-full mb-2')
+
+
+def render_results_section():
+    """Renders the results section with view toggle and results display"""
+    global results_area, current_view, results_display_container
+    
+    if results_area is None:
+        return
+    
+    with results_area:
+        # Header with view toggle
+        with ui.row().classes('w-full items-center justify-between mb-4'):
+            ui.label('Showing 10 results').classes('text-sm text-gray-600')
+            
+            with ui.row().classes('gap-2'):
+                ui.button(icon='grid_view', on_click=lambda: toggle_view('grid')).props(
+                    f'flat dense {"color=primary" if current_view == "grid" else "color=grey"}'
+                ).tooltip('Grid View')
+                ui.button(icon='view_list', on_click=lambda: toggle_view('list')).props(
+                    f'flat dense {"color=primary" if current_view == "list" else "color=grey"}'
+                ).tooltip('List View')
+        
+        # Results display area
+        results_display_container = ui.column().classes('w-full')
+        render_mock_results(results_display_container)
+
+
+def toggle_view(view_type):
+    """Toggle between grid and list view"""
+    global current_view, results_display_container
+    current_view = view_type
+    logger.info(f"Toggled view to: {view_type}")
+    # Re-render only the results display container
+    if results_display_container:
+        results_display_container.clear()
+        with results_display_container:
+            results = MOCK_RESULTS['Metadata Filter']
+            if current_view == 'grid':
+                render_grid_view(results)
+            else:
+                render_list_view(results)
+
+
+def render_mock_results(container):
+    """Render mock results in current view mode"""
+    global current_view
+    
+    # For now, show Metadata Filter results as default
+    results = MOCK_RESULTS['Metadata Filter']
+    
+    with container:
+        if current_view == 'grid':
+            render_grid_view(results)
+        else:
+            render_list_view(results)
+
+
+def render_grid_view(results):
+    """Render results in grid view (2 rows x 5 columns)"""
+    # Grid with 5 columns
+    with ui.element('div').classes('grid grid-cols-5 gap-4 w-full'):
+        for result in results:
+            # Square tile with image and title below
+            with ui.column().classes('gap-2'):
+                # Image container with fixed aspect ratio
+                with ui.card().classes('w-full p-0 overflow-hidden cursor-pointer hover:shadow-xl transition').style('aspect-ratio: 1/1;'):
+                    ui.image(result['image']).classes('w-full h-full object-cover')
+                
+                # Metadata below image
+                with ui.column().classes('gap-0'):
+                    ui.label(result['title']).classes('text-sm font-bold text-gray-800 truncate')
+                    ui.label(result['artist']).classes('text-xs text-gray-600')
+                    ui.label(f"{result['year']} • {result['inventory']}").classes('text-xs text-gray-500')
+
+
+def render_list_view(results):
+    """Render results in list view (1 per row)"""
+    with ui.column().classes('w-full gap-3'):
+        for result in results:
+            # List item card
+            with ui.card().classes('w-full hover:shadow-lg transition cursor-pointer'):
+                with ui.row().classes('w-full items-center gap-4 p-2'):
+                    # Square thumbnail (fixed size)
+                    ui.image(result['image']).classes('w-24 h-24 object-cover rounded')
+                    
+                    # Metadata (always visible)
+                    with ui.column().classes('flex-1'):
+                        ui.label(result['title']).classes('text-base font-bold text-gray-800')
+                        ui.label(result['artist']).classes('text-sm text-gray-600')
+                        with ui.row().classes('gap-2 mt-1'):
+                            ui.badge(result['year']).props('color=grey')
+                            ui.badge(result['inventory']).props(f'color=none').classes(f'bg-[{BROWN}] text-white')
+
 
 
 
