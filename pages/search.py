@@ -2,12 +2,8 @@ from nicegui import ui, app
 from ui_components.config import BROWN, OPERATORS
 import json
 import uuid
-import logging
+from loguru import logger
 from typing import List, Dict, Optional
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # TODO: Future refactoring - Class-based operators
 # Currently operators are identified by name strings (e.g., 'Metadata Filter').

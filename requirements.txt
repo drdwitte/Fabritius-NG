@@ -1,1 +1,8 @@
 nicegui
+
+# Nieuwe backend dependencies (migratie)
+supabase==2.23.2
+openai==2.7.1
+python-dotenv==1.2.1
+loguru==0.7.3
+pydantic==2.12.3
