@@ -49,7 +49,8 @@ class PipelineState:
         operator = {
             'id': operator_id,
             'name': operator_name,
-            'params': {}
+            'params': {},
+            'result_count': None  # None until first execution
         }
         self._operators.append(operator)
         logger.info(f"Added '{operator_name}': {[op['name'] for op in self._operators]}")
@@ -92,6 +93,18 @@ class PipelineState:
         index = self._find_index(operator_id)
         if index != -1:
             self._operators[index]['params'] = params
+            return True
+        return False
+    
+    def update_result_count(self, operator_id: str, count: int) -> bool:
+        """
+        Updates the result count for an operator after execution.
+        Returns True if updated, False if not found.
+        """
+        index = self._find_index(operator_id)
+        if index != -1:
+            self._operators[index]['result_count'] = count
+            logger.info(f"Updated result count for operator {operator_id}: {count} results")
             return True
         return False
     
@@ -189,7 +202,7 @@ MOCK_RESULTS = {
 ############ OPERATOR EXECUTION ############
 ############################################
 
-def execute_semantic_search(params: dict) -> list:
+def execute_semantic_search(params: dict) -> tuple:
     """
     Execute Semantic Search operator by calling backend vector search.
     
@@ -202,7 +215,9 @@ def execute_semantic_search(params: dict) -> list:
             - similarity_max (float): Max similarity for similarity_range mode
     
     Returns:
-        List of artwork dicts formatted for display
+        Tuple of (preview_results, total_count):
+            - preview_results: List of artwork dicts for display (max PREVIEW_RESULTS_COUNT)
+            - total_count: Total number of results after filtering (for result count badge)
     """
     from backend.supabase_client import SupabaseClient
     
@@ -211,7 +226,7 @@ def execute_semantic_search(params: dict) -> list:
         query_text = params.get('query_text', '').strip()
         if not query_text:
             logger.error("Semantic Search: query_text is required")
-            return []
+            return [], 0
         
         result_mode = params.get('result_mode', 'top_n')
         
@@ -225,41 +240,50 @@ def execute_semantic_search(params: dict) -> list:
         
         if not vector_results:
             logger.warning(f"No vector search results for query: {query_text}")
-            return []
+            return [], 0
         
         logger.info(f"Vector search returned {len(vector_results)} results")
         
-        # 3. Apply result_mode filtering
-        filtered_results = vector_results
+        # 3. Apply result_mode filtering (get ALL filtered results first for count)
+        filtered_results_all = vector_results
         
         if result_mode == 'top_n':
-            # Take top N results (already sorted by similarity DESC)
-            filtered_results = vector_results[:PREVIEW_RESULTS_COUNT]
-            logger.info(f"Applied top_n filter: {len(filtered_results)} results")
+            # Get all results that match this mode (for counting)
+            n_results = int(params.get('n_results', 100))
+            filtered_results_all = vector_results[:n_results]
+            logger.info(f"Applied top_n filter: {len(filtered_results_all)} total results")
             
         elif result_mode == 'last_n':
-            # Take last N results (lowest similarity)
-            filtered_results = vector_results[-PREVIEW_RESULTS_COUNT:] if len(vector_results) >= PREVIEW_RESULTS_COUNT else vector_results
-            logger.info(f"Applied last_n filter: {len(filtered_results)} results")
+            # Get all results that match this mode (for counting)
+            n_results = int(params.get('n_results', 100))
+            filtered_results_all = vector_results[-n_results:] if len(vector_results) >= n_results else vector_results
+            logger.info(f"Applied last_n filter: {len(filtered_results_all)} total results")
             
         elif result_mode == 'similarity_range':
-            # Filter by similarity range, then limit to preview count
+            # Filter by similarity range (get all matches for counting)
             similarity_min = params.get('similarity_min', 0.0)
             similarity_max = params.get('similarity_max', 1.0)
-            filtered_results = [
+            filtered_results_all = [
                 r for r in vector_results 
                 if similarity_min <= r.get('similarity', 0) <= similarity_max
-            ][:PREVIEW_RESULTS_COUNT]  # Limit to preview count
-            logger.info(f"Applied similarity_range filter [{similarity_min}-{similarity_max}]: {len(filtered_results)} results")
+            ]
+            logger.info(f"Applied similarity_range filter [{similarity_min}-{similarity_max}]: {len(filtered_results_all)} total results")
         
-        if not filtered_results:
+        # Store total count BEFORE slicing for preview
+        total_count = len(filtered_results_all)
+        
+        if not filtered_results_all:
             logger.warning("No results after applying filters")
-            return []
+            return [], 0
         
-        # 4. Get inventory numbers from filtered results
-        inv_numbers = [r['inventarisnummer'] for r in filtered_results]
+        # 4. Slice to preview count for display
+        preview_results = filtered_results_all[:PREVIEW_RESULTS_COUNT]
+        logger.info(f"Showing {len(preview_results)} preview results out of {total_count} total")
         
-        # 5. Fetch full artwork details from database
+        # 5. Get inventory numbers from preview results
+        inv_numbers = [r['inventarisnummer'] for r in preview_results]
+        
+        # 6. Fetch full artwork details from database
         full_results = db.get_artworks(
             page=1,
             items_per_page=len(inv_numbers),
@@ -268,7 +292,7 @@ def execute_semantic_search(params: dict) -> list:
         
         logger.info(f"Fetched full details for {len(full_results['items'])} artworks")
         
-        # 6. Format for display (map backend fields to UI format)
+        # 7. Format for display (map backend fields to UI format)
         formatted_results = []
         for artwork in full_results['items']:
             # Construct full image URL
@@ -289,14 +313,14 @@ def execute_semantic_search(params: dict) -> list:
                 'image': image_url
             })
         
-        logger.info(f"Semantic Search completed: {len(formatted_results)} results")
-        return formatted_results
+        logger.info(f"Semantic Search completed: {len(formatted_results)} preview results, {total_count} total results")
+        return formatted_results, total_count
         
     except Exception as e:
         logger.error(f"Error executing Semantic Search: {e}")
         import traceback
         traceback.print_exc()
-        return []
+        return [], 0
 
 
 async def sync_from_dom():
@@ -543,7 +567,14 @@ def render_pipeline():
                     else:
                         ui.label("No filters applied").classes('text-sm text-gray-400 italic w-full mt-2')
                     
-                    ui.label("89 results").classes(
+                    # Show result count (None = not executed yet, int = actual count)
+                    result_count = op_data.get('result_count')
+                    if result_count is None:
+                        count_text = "? results"
+                    else:
+                        count_text = f"{result_count} results"
+                    
+                    ui.label(count_text).classes(
                         f'inline-block mt-3 px-2 py-1 text-xs font-medium rounded-md bg-[{BROWN}] text-white'
                     )
 
@@ -1240,19 +1271,25 @@ def show_preview_for_operator(operator_id: str, operator_name: str):
         def execute_query():
             # Execute backend search
             logger.info(f"Executing Semantic Search with params: {params}")
-            results = execute_semantic_search(params)
+            preview_results, total_count = execute_semantic_search(params)
+            
+            # Update result count in pipeline state (use total_count, not preview count)
+            pipeline_state.update_result_count(operator_id, total_count)
+            
+            # Re-render pipeline to show updated count
+            render_pipeline()
             
             # Clear spinner and show results
             results_area.clear()
             
-            if not results:
+            if not preview_results:
                 with results_area:
                     ui.label('No results found').classes('text-gray-600 font-medium')
                     ui.label('Try adjusting your search parameters').classes('text-sm text-gray-500 mt-2')
                 return
             
             # Render results
-            render_results_ui(results, operator_id, operator_name)
+            render_results_ui(preview_results, operator_id, operator_name)
         
         # Execute after short delay to let UI update
         ui.timer(0.1, execute_query, once=True)
