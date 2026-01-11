@@ -323,6 +323,102 @@ def execute_semantic_search(params: dict) -> tuple:
         return [], 0
 
 
+def execute_metadata_filter(params: dict) -> tuple:
+    """
+    Execute Metadata Filter operator by calling backend with search filters.
+    
+    Args:
+        params: Operator parameters containing:
+            - artist (str): Artist name (partial match)
+            - title (str): Work title (partial match)
+            - inventory_number (str): Inventory number (partial match)
+            - year_range (list): [min_year, max_year] or [None, None]
+            - source (list): Collection sources (multiselect)
+    
+    Returns:
+        Tuple of (preview_results, total_count)
+    """
+    from backend.supabase_client import SupabaseClient
+    
+    try:
+        # Build search_params dict from operator params
+        search_params = {}
+        
+        if artist := params.get('artist', '').strip():
+            search_params['artist'] = artist
+        
+        if title := params.get('title', '').strip():
+            search_params['title'] = title
+        
+        if inv_num := params.get('inventory_number', '').strip():
+            search_params['inventory_number'] = inv_num
+        
+        # Year range filtering (ensure integers)
+        year_range = params.get('year_range', [None, None])
+        if year_range and (year_range[0] is not None or year_range[1] is not None):
+            # Convert to integers to prevent float values
+            min_year = int(year_range[0]) if year_range[0] is not None else None
+            max_year = int(year_range[1]) if year_range[1] is not None else None
+            search_params['year_range'] = [min_year, max_year]
+        
+        # Source filtering (multiselect)
+        source = params.get('source', [])
+        if source:
+            search_params['source'] = source
+        
+        logger.info(f"Executing Metadata Filter with params: {search_params}")
+        
+        # Call backend - get all results first for count
+        db = SupabaseClient()
+        
+        # Get total count by querying with large page size
+        full_results = db.get_artworks(
+            page=1,
+            items_per_page=10000,  # Large enough to get all results
+            search_params=search_params
+        )
+        
+        total_count = full_results['total_items']
+        all_items = full_results['items']
+        
+        logger.info(f"Metadata Filter returned {total_count} results")
+        
+        if not all_items:
+            logger.warning("No results after applying metadata filters")
+            return [], 0
+        
+        # Slice to preview count for display
+        preview_results = all_items[:PREVIEW_RESULTS_COUNT]
+        
+        # Format for display
+        formatted_results = []
+        for artwork in preview_results:
+            # Construct full image URL
+            image_path = artwork.get('imageOpacLink', '')
+            if image_path and not image_path.startswith('http'):
+                image_url = f"{IMAGE_BASE_URL}{image_path}" if image_path.startswith('/') else f"{IMAGE_BASE_URL}/{image_path}"
+            else:
+                image_url = image_path
+            
+            formatted_results.append({
+                'id': artwork.get('inventarisnummer', 'N/A'),
+                'title': artwork.get('beschrijving_titel', 'Untitled'),
+                'artist': artwork.get('beschrijving_kunstenaar', 'Unknown Artist'),
+                'year': artwork.get('beschrijving_datering', 'N/A'),
+                'inventory': artwork.get('inventarisnummer', 'N/A'),
+                'image': image_url
+            })
+        
+        logger.info(f"Metadata Filter completed: {len(formatted_results)} preview results, {total_count} total results")
+        return formatted_results, total_count
+        
+    except Exception as e:
+        logger.error(f"Error executing Metadata Filter: {e}")
+        import traceback
+        traceback.print_exc()
+        return [], 0
+
+
 async def sync_from_dom():
     """Syncs the pipeline state from the DOM order (DOM is source of truth)."""
     # Use JavaScript to read the current order from DOM
@@ -556,11 +652,17 @@ def render_pipeline():
                                 display_value = f'📷 {param_value["filename"]}'
                             elif isinstance(param_value, list):
                                 if all(isinstance(x, (int, float)) for x in param_value):
-                                    display_value = f"{param_value[0]} - {param_value[1]}"
+                                    # Convert to int for year ranges to avoid .0 display
+                                    val0 = int(param_value[0]) if param_value[0] is not None else None
+                                    val1 = int(param_value[1]) if param_value[1] is not None else None
+                                    display_value = f"{val0} - {val1}"
                                 else:
                                     display_value = ', '.join(str(v) for v in param_value[:3])
                                     if len(param_value) > 3:
                                         display_value += '...'
+                            elif isinstance(param_value, float) and param_value.is_integer():
+                                # Convert float to int if it has no decimal part (e.g., 15.0 -> 15)
+                                display_value = str(int(param_value))
                             else:
                                 display_value = str(param_value)[:30]
                             ui.label(f"{param_name}: {display_value}").classes('text-sm text-gray-400 italic w-full leading-tight mt-1')
@@ -1123,6 +1225,17 @@ def render_static_form_ui(params_schema, existing_params, operator_id, op_name, 
                 if input_field:
                     value = input_field.value
                     if value or value == 0:
+                        # Convert number types to int if step is 1 (to avoid .0 floats)
+                        if param_type == 'number':
+                            step = param_config.get('step', 1)
+                            if step == 1 or step is None:
+                                value = int(value)
+                        # Convert range types to int if step is 1
+                        elif param_type == 'range':
+                            step = param_config.get('step', 1)
+                            if step == 1 or step is None:
+                                if isinstance(value, list):
+                                    value = [int(v) if v is not None else None for v in value]
                         params[param_name] = value
                     elif is_required:
                         missing_required.append(param_config.get('label', param_name))
@@ -1260,7 +1373,7 @@ def show_preview_for_operator(operator_id: str, operator_name: str):
     
     results_area.clear()
     
-    # Show loading spinner for Semantic Search
+    # --- SEMANTIC SEARCH ---
     if operator_name == 'Semantic Search' and params.get('query_text'):
         with results_area:
             with ui.row().classes('w-full items-center justify-center p-8 gap-3'):
@@ -1268,7 +1381,7 @@ def show_preview_for_operator(operator_id: str, operator_name: str):
                 ui.label('Loading results...').classes('text-gray-600 font-medium')
         
         # Use timer to defer execution so spinner is visible
-        def execute_query():
+        def execute_semantic_query():
             # Execute backend search
             logger.info(f"Executing Semantic Search with params: {params}")
             preview_results, total_count = execute_semantic_search(params)
@@ -1292,10 +1405,58 @@ def show_preview_for_operator(operator_id: str, operator_name: str):
             render_results_ui(preview_results, operator_id, operator_name)
         
         # Execute after short delay to let UI update
-        ui.timer(0.1, execute_query, once=True)
+        ui.timer(0.1, execute_semantic_query, once=True)
         return
     
-    # Handle other cases immediately
+    # --- METADATA FILTER ---
+    if operator_name == 'Metadata Filter':
+        # Check if any filter is configured
+        has_filters = any([
+            params.get('artist', '').strip(),
+            params.get('title', '').strip(),
+            params.get('inventory_number', '').strip(),
+            params.get('year_range', [None, None]) != [None, None],
+            params.get('source', [])
+        ])
+        
+        if has_filters:
+            with results_area:
+                with ui.row().classes('w-full items-center justify-center p-8 gap-3'):
+                    ui.spinner('dots', size='lg', color='primary')
+                    ui.label('Loading results...').classes('text-gray-600 font-medium')
+            
+            def execute_metadata_query():
+                logger.info(f"Executing Metadata Filter with params: {params}")
+                preview_results, total_count = execute_metadata_filter(params)
+                
+                # Update result count in pipeline state
+                pipeline_state.update_result_count(operator_id, total_count)
+                
+                # Re-render pipeline to show updated count
+                render_pipeline()
+                
+                # Clear spinner and show results
+                results_area.clear()
+                
+                if not preview_results:
+                    with results_area:
+                        ui.label('No results found').classes('text-gray-600 font-medium')
+                        ui.label('Try adjusting your filter parameters').classes('text-sm text-gray-500 mt-2')
+                    return
+                
+                # Render results
+                render_results_ui(preview_results, operator_id, operator_name)
+            
+            ui.timer(0.1, execute_metadata_query, once=True)
+            return
+        else:
+            # No filters configured
+            with results_area:
+                ui.label('⚠️ Please configure the Metadata Filter first').classes('text-orange-600 font-medium')
+                ui.label('Click the settings icon to add filter parameters').classes('text-sm text-gray-500 mt-2')
+            return
+    
+    # Handle other cases
     if operator_name == 'Semantic Search':
         # No query_text configured
         with results_area:

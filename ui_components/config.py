@@ -40,7 +40,8 @@ OPERATORS = {
                 'description': 'Filter by year period',
                 'default': [None, None],
                 'min': 1000,
-                'max': 2100
+                'max': 2100,
+                'step': 1
             },
             'inventory_number': {
                 'type': 'text',

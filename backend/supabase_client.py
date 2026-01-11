@@ -118,6 +118,31 @@ class SupabaseClient:
             if title := search_params.get('title'):
                 query = query.ilike('beschrijving_titel', f'%{title}%')
                 logger.debug(f"Applied title filter: {title}")
+            
+            # Year range filter (assuming beschrijving_datering contains year info)
+            if year_range := search_params.get('year_range'):
+                min_year, max_year = year_range
+                # Ensure integers (convert if needed)
+                if min_year is not None:
+                    min_year = int(min_year)
+                if max_year is not None:
+                    max_year = int(max_year)
+                # Note: beschrijving_datering might be text like "1642" or "ca. 1640-1650"
+                # For now, we'll do text-based filtering with ILIKE
+                # TODO: Consider parsing years from text for more accurate filtering
+                if min_year is not None:
+                    query = query.gte('beschrijving_datering', str(min_year))
+                if max_year is not None:
+                    query = query.lte('beschrijving_datering', str(max_year))
+                logger.debug(f"Applied year range filter: {min_year} - {max_year}")
+            
+            # Source filter (multiselect on collection source)
+            if source := search_params.get('source'):
+                if isinstance(source, list) and source:
+                    # Assuming there's a 'source' or 'collection' field
+                    # TODO: Verify actual field name in database
+                    query = query.in_('bron', source)
+                    logger.debug(f"Applied source filter: {source}")
              
             return query
 
