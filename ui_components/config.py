@@ -4,6 +4,12 @@ BUTTON_LABELS = ['SEARCH', 'DETAIL', 'LABEL', 'CHAT', 'INSIGHTS']
 LOGIN_LABEL = 'LOGIN'
 BROWN = '#8b4513'
 
+# Image base URL for artwork images
+IMAGE_BASE_URL = 'https://www.opac-fabritius.be'
+
+# Preview settings
+PREVIEW_RESULTS_COUNT = 10  # Always show 2 rows x 5 columns in preview
+
 OPERATORS = {
     'Metadata Filter': {
         'icon': 'filter_alt',

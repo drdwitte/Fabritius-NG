@@ -1,5 +1,5 @@
 from nicegui import ui, app
-from ui_components.config import BROWN, OPERATORS
+from ui_components.config import BROWN, OPERATORS, IMAGE_BASE_URL, PREVIEW_RESULTS_COUNT
 import json
 import uuid
 from loguru import logger
@@ -183,6 +183,121 @@ MOCK_RESULTS = {
         {'id': '30', 'title': 'The Night Café', 'artist': 'Vincent van Gogh', 'year': '1888', 'inventory': 'SI010', 'image': 'https://loremflickr.com/400/400/museum?lock=30'},
     ]
 }
+
+
+############################################
+############ OPERATOR EXECUTION ############
+############################################
+
+def execute_semantic_search(params: dict) -> list:
+    """
+    Execute Semantic Search operator by calling backend vector search.
+    
+    Args:
+        params: Operator parameters containing:
+            - query_text (str): Search query text (required)
+            - result_mode (str): 'top_n', 'last_n', or 'similarity_range'
+            - n_results (int): Number of results for top_n/last_n modes
+            - similarity_min (float): Min similarity for similarity_range mode
+            - similarity_max (float): Max similarity for similarity_range mode
+    
+    Returns:
+        List of artwork dicts formatted for display
+    """
+    from backend.supabase_client import SupabaseClient
+    
+    try:
+        # 1. Validate required params
+        query_text = params.get('query_text', '').strip()
+        if not query_text:
+            logger.error("Semantic Search: query_text is required")
+            return []
+        
+        result_mode = params.get('result_mode', 'top_n')
+        
+        logger.info(f"Executing Semantic Search: query='{query_text}', mode={result_mode}")
+        logger.info(f"Preview mode: using PREVIEW_RESULTS_COUNT={PREVIEW_RESULTS_COUNT} instead of n_results param")
+        
+        # 2. Call backend vector search (get many results for filtering)
+        # For preview, we ignore n_results param and use PREVIEW_RESULTS_COUNT
+        db = SupabaseClient()
+        vector_results = db.vector_search(query_text, limit=1000)  # Get many results for filtering
+        
+        if not vector_results:
+            logger.warning(f"No vector search results for query: {query_text}")
+            return []
+        
+        logger.info(f"Vector search returned {len(vector_results)} results")
+        
+        # 3. Apply result_mode filtering
+        filtered_results = vector_results
+        
+        if result_mode == 'top_n':
+            # Take top N results (already sorted by similarity DESC)
+            filtered_results = vector_results[:PREVIEW_RESULTS_COUNT]
+            logger.info(f"Applied top_n filter: {len(filtered_results)} results")
+            
+        elif result_mode == 'last_n':
+            # Take last N results (lowest similarity)
+            filtered_results = vector_results[-PREVIEW_RESULTS_COUNT:] if len(vector_results) >= PREVIEW_RESULTS_COUNT else vector_results
+            logger.info(f"Applied last_n filter: {len(filtered_results)} results")
+            
+        elif result_mode == 'similarity_range':
+            # Filter by similarity range, then limit to preview count
+            similarity_min = params.get('similarity_min', 0.0)
+            similarity_max = params.get('similarity_max', 1.0)
+            filtered_results = [
+                r for r in vector_results 
+                if similarity_min <= r.get('similarity', 0) <= similarity_max
+            ][:PREVIEW_RESULTS_COUNT]  # Limit to preview count
+            logger.info(f"Applied similarity_range filter [{similarity_min}-{similarity_max}]: {len(filtered_results)} results")
+        
+        if not filtered_results:
+            logger.warning("No results after applying filters")
+            return []
+        
+        # 4. Get inventory numbers from filtered results
+        inv_numbers = [r['inventarisnummer'] for r in filtered_results]
+        
+        # 5. Fetch full artwork details from database
+        full_results = db.get_artworks(
+            page=1,
+            items_per_page=len(inv_numbers),
+            search_params={'inventory_number': inv_numbers}
+        )
+        
+        logger.info(f"Fetched full details for {len(full_results['items'])} artworks")
+        
+        # 6. Format for display (map backend fields to UI format)
+        formatted_results = []
+        for artwork in full_results['items']:
+            # Construct full image URL
+            image_path = artwork.get('imageOpacLink', '')
+            if image_path and not image_path.startswith('http'):
+                # If relative path, prepend base URL
+                image_url = f"{IMAGE_BASE_URL}{image_path}" if image_path.startswith('/') else f"{IMAGE_BASE_URL}/{image_path}"
+            else:
+                # Already absolute URL or empty
+                image_url = image_path
+            
+            formatted_results.append({
+                'id': artwork.get('inventarisnummer', 'N/A'),
+                'title': artwork.get('beschrijving_titel', 'Untitled'),
+                'artist': artwork.get('beschrijving_kunstenaar', 'Unknown Artist'),
+                'year': artwork.get('beschrijving_datering', 'N/A'),
+                'inventory': artwork.get('inventarisnummer', 'N/A'),
+                'image': image_url
+            })
+        
+        logger.info(f"Semantic Search completed: {len(formatted_results)} results")
+        return formatted_results
+        
+    except Exception as e:
+        logger.error(f"Error executing Semantic Search: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
 
 async def sync_from_dom():
     """Syncs the pipeline state from the DOM order (DOM is source of truth)."""
@@ -1094,20 +1209,86 @@ def show_preview_for_operator(operator_id: str, operator_name: str):
     
     logger.info(f"Showing preview for operator: {operator_name} (ID: {operator_id})")
     
-    # Clear and render results for this operator
-    if results_area:
-        results_area.clear()
-        
+    # Get operator params from pipeline state
+    operator_data = None
+    for op in pipeline_state.get_all_operators():
+        if op['id'] == operator_id:
+            operator_data = op
+            break
+    
+    if not operator_data:
+        logger.error(f"Operator {operator_id} not found in pipeline")
+        ui.notify('Operator not found', type='negative')
+        return
+    
+    params = operator_data.get('params', {})
+    
+    # Clear results area immediately
+    if not results_area:
+        return
+    
+    results_area.clear()
+    
+    # Show loading spinner for Semantic Search
+    if operator_name == 'Semantic Search' and params.get('query_text'):
         with results_area:
+            with ui.row().classes('w-full items-center justify-center p-8 gap-3'):
+                ui.spinner('dots', size='lg', color='primary')
+                ui.label('Loading results...').classes('text-gray-600 font-medium')
+        
+        # Use timer to defer execution so spinner is visible
+        def execute_query():
+            # Execute backend search
+            logger.info(f"Executing Semantic Search with params: {params}")
+            results = execute_semantic_search(params)
+            
+            # Clear spinner and show results
+            results_area.clear()
+            
+            if not results:
+                with results_area:
+                    ui.label('No results found').classes('text-gray-600 font-medium')
+                    ui.label('Try adjusting your search parameters').classes('text-sm text-gray-500 mt-2')
+                return
+            
+            # Render results
+            render_results_ui(results, operator_id, operator_name)
+        
+        # Execute after short delay to let UI update
+        ui.timer(0.1, execute_query, once=True)
+        return
+    
+    # Handle other cases immediately
+    if operator_name == 'Semantic Search':
+        # No query_text configured
+        with results_area:
+            ui.label('⚠️ Please configure the Semantic Search operator first').classes('text-orange-600 font-medium')
+            ui.label('Click the settings icon to add search parameters').classes('text-sm text-gray-500 mt-2')
+        return
+    
+    # Use mock data for other operators
+    results = MOCK_RESULTS.get(operator_name, MOCK_RESULTS['Metadata Filter'])
+    render_results_ui(results, operator_id, operator_name)
+
+
+def render_results_ui(results, operator_id, operator_name):
+    """Render results UI with header and grid/list view"""
+    global results_area, current_view, results_display_container, last_preview_results, last_preview_operator_id
+    
+    # Cache results for fast view toggling
+    last_preview_results = results
+    last_preview_operator_id = operator_id
+    
+    with results_area:
             # Header with view toggle
             with ui.row().classes('w-full items-center justify-between mb-4'):
-                ui.label(f'Preview: {operator_name} (10 results)').classes('text-sm text-gray-600')
+                ui.label(f'Preview: {operator_name}').classes('text-sm text-gray-600')
                 
                 with ui.row().classes('gap-2'):
-                    ui.button(icon='grid_view', on_click=lambda: toggle_view_for_operator('grid', operator_name)).props(
+                    ui.button(icon='grid_view', on_click=lambda: toggle_view_for_operator('grid', operator_id, operator_name)).props(
                         f'flat dense {"color=primary" if current_view == "grid" else "color=grey"}'
                     ).tooltip('Grid View')
-                    ui.button(icon='view_list', on_click=lambda: toggle_view_for_operator('list', operator_name)).props(
+                    ui.button(icon='view_list', on_click=lambda: toggle_view_for_operator('list', operator_id, operator_name)).props(
                         f'flat dense {"color=primary" if current_view == "list" else "color=grey"}'
                     ).tooltip('List View')
             
@@ -1115,8 +1296,7 @@ def show_preview_for_operator(operator_id: str, operator_name: str):
             global results_display_container
             results_display_container = ui.element('div').classes('w-full')
             
-            # Show results based on operator type
-            results = MOCK_RESULTS.get(operator_name, MOCK_RESULTS['Metadata Filter'])
+            # Render results (already fetched above)
             with results_display_container:
                 # Ensure grid container has full width
                 container = ui.element('div').classes('w-full')
@@ -1125,8 +1305,14 @@ def show_preview_for_operator(operator_id: str, operator_name: str):
                         render_grid_view(results)
                     else:
                         render_list_view(results)
+            
+            # Update result count in header
+            ui.run_javascript(f"""
+                document.querySelector('[id="results-area"] .text-sm.text-gray-600').textContent = 
+                    'Preview: {operator_name} ({len(results)} results)';
+            """)
     
-    ui.notify(f'Preview for {operator_name}', type='positive')
+    ui.notify(f'Preview for {operator_name}: {len(results) if operator_name == "Semantic Search" and results else "mock data"}', type='positive')
 
 
 def toggle_view(view_type):
@@ -1145,24 +1331,28 @@ def toggle_view(view_type):
                 render_list_view(results)
 
 
-def toggle_view_for_operator(view_type: str, operator_name: str):
+# Global cache for last results
+last_preview_results = None
+last_preview_operator_id = None
+
+def toggle_view_for_operator(view_type: str, operator_id: str, operator_name: str):
     """Toggle between grid and list view for a specific operator"""
-    global current_view, results_display_container
+    global current_view, results_display_container, last_preview_results
     current_view = view_type
     logger.info(f"Toggled view to: {view_type} for operator: {operator_name}")
     
-    # Re-render only the results display container with the operator's results
-    if results_display_container:
+    # Re-render only the results display container with cached results
+    if results_display_container and last_preview_results:
         results_display_container.clear()
-        results = MOCK_RESULTS.get(operator_name, MOCK_RESULTS['Metadata Filter'])
-        # Add full width wrapper
+        
+        # Use cached results instead of re-executing
         with results_display_container:
             container = ui.element('div').classes('w-full')
             with container:
                 if current_view == 'grid':
-                    render_grid_view(results)
+                    render_grid_view(last_preview_results)
                 else:
-                    render_list_view(results)
+                    render_list_view(last_preview_results)
 
 
 def render_mock_results(container):
@@ -1184,6 +1374,11 @@ def render_grid_view(results):
     # Grid with 5 columns
     with ui.element('div').classes('grid grid-cols-5 gap-4 w-full'):
         for result in results:
+            # Truncate title to max 30 chars
+            title = result['title']
+            if len(title) > 30:
+                title = title[:27] + '...'
+            
             # Square tile with image and title below
             with ui.column().classes('gap-2 min-w-0'):
                 # Image container with fixed aspect ratio
@@ -1192,7 +1387,7 @@ def render_grid_view(results):
                 
                 # Metadata below image with truncation
                 with ui.column().classes('gap-0 w-full min-w-0'):
-                    ui.label(result['title']).classes('text-sm font-bold text-gray-800 truncate')
+                    ui.label(title).classes('text-sm font-bold text-gray-800 truncate')
                     ui.label(result['artist']).classes('text-xs text-gray-600 truncate')
                     ui.label(f"{result['year']} • {result['inventory']}").classes('text-xs text-gray-500 truncate')
 
