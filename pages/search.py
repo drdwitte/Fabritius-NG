@@ -675,7 +675,7 @@ def render_search(ui):
     """
     Renders the main search page, including the operator library and the pipeline area.
     """
-    global pipeline_area, pipeline_name_input, results_area, results_display_container
+    global pipeline_area, pipeline_name_input, results_area, results_display_container, last_preview_results, last_preview_operator_id
     
     # Load Sortable.js for drag-and-drop functionality
     ui.add_head_html("<script src=\"https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js\"></script>")    
@@ -717,6 +717,14 @@ def render_search(ui):
             # Results section
             ui.label('RESULTS').classes('text-xl font-bold mt-6 mb-2')
             results_area = ui.element('div').props('id=results-area').classes('w-full')
+            
+            # Restore cached results if available
+            if last_preview_results and last_preview_operator_id:
+                logger.info(f"Restoring cached results: {len(last_preview_results)} results")
+                # Find operator name from id
+                operator = pipeline_state.get_operator(last_preview_operator_id)
+                operator_name = operator['name'] if operator else 'Unknown'
+                render_results_ui(last_preview_results, last_preview_operator_id, operator_name)
 
 def icon_button(icon_name, label, on_click, bg='bg-white', text='text-gray-700', border='border-gray-300'):
     """
@@ -1794,6 +1802,18 @@ def render_mock_results(container):
             render_list_view(results)
 
 
+def show_artwork_detail(artwork_data):
+    """Navigate to detail view with artwork data."""
+    logger.info(f"Navigating to detail view for artwork: {artwork_data.get('inventory')}")
+    
+    # Store artwork data in detail module's storage dict
+    from pages import detail
+    detail._artwork_storage['current_artwork'] = artwork_data
+    
+    # Navigate to detail route
+    ui.navigate.to('/detail')
+
+
 def render_grid_view(results):
     """Render results in grid view (2 rows x 5 columns)"""
     # Grid with 5 columns
@@ -1806,9 +1826,10 @@ def render_grid_view(results):
             
             # Square tile with image and title below
             with ui.column().classes('gap-2 min-w-0'):
-                # Image container with fixed aspect ratio
+                # Image container with fixed aspect ratio - clickable
                 with ui.card().classes('w-full p-0 overflow-hidden cursor-pointer hover:shadow-xl transition').style('aspect-ratio: 1/1;'):
-                    ui.image(result['image']).classes('w-full h-full object-cover')
+                    img = ui.image(result['image']).classes('w-full h-full object-cover')
+                    img.on('click', lambda r=result: show_artwork_detail(r))
                 
                 # Metadata below image with truncation
                 with ui.column().classes('gap-0 w-full min-w-0'):
@@ -1821,9 +1842,12 @@ def render_list_view(results):
     """Render results in list view (1 per row)"""
     with ui.column().classes('w-full gap-3'):
         for result in results:
-            # List item card
+            # List item card - clickable
             with ui.card().classes('w-full hover:shadow-lg transition cursor-pointer'):
-                with ui.row().classes('w-full items-center gap-4 p-2'):
+                card_row = ui.row().classes('w-full items-center gap-4 p-2')
+                card_row.on('click', lambda r=result: show_artwork_detail(r))
+                
+                with card_row:
                     # Square thumbnail (fixed size)
                     ui.image(result['image']).classes('w-24 h-24 object-cover rounded')
                     
