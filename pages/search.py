@@ -298,7 +298,7 @@ def render_search(ui):
 
             # Render operator cards from the centralized OPERATORS configuration
             for operator_name in OPERATORS.keys():
-                operator_card(operator_name, lambda op=operator_name: (pipeline_state.add_operator(op), ui.notify(f'Added {op}'), render_pipeline()))
+                operator_card(operator_name, lambda op=operator_name: (pipeline_state.add_operator(op), ui.notify(f'Added {op}'), clear_results(), render_pipeline()))
 
         # Main content (right)
         with ui.column().classes('flex-1 min-w-0 p-4'):
@@ -308,8 +308,7 @@ def render_search(ui):
             
             # Results section
             ui.label('RESULTS').classes('text-xl font-bold mt-6 mb-2')
-            results_area = ui.element('div').props('id=results-area')
-            render_results_section()
+            results_area = ui.element('div').props('id=results-area').classes('w-full')
 
 def icon_button(icon_name, label, on_click, bg='bg-white', text='text-gray-700', border='border-gray-300'):
     """
@@ -386,9 +385,8 @@ def render_pipeline():
 
                 # Create a tile for the operator
                 tile = (ui.element('div')
-                    .classes('flex flex-col gap-0 px-2 py-2 rounded-xl bg-white shadow-sm min-w-[180px] cursor-pointer hover:shadow-md transition')
+                    .classes('flex flex-col gap-0 px-2 py-2 rounded-xl bg-white shadow-sm min-w-[180px] hover:shadow-md transition')
                     .props(f'data-operator-id="{op_id}"')
-                    .on('click', lambda _, op_id=op_id: show_operator_config(op_id))
                 )
 
                 with tile:
@@ -396,10 +394,18 @@ def render_pipeline():
                         ui.icon('drag_indicator').classes('text-xl text-gray-400 cursor-move')
                         ui.icon(icon).classes('text-xl text-gray-700')
                         ui.label(op_name).classes('text-gray-800 font-medium ml-2')
+                        # Preview icon to show results for this operator
+                        ui.icon('visibility').classes(f'text-xl text-[{BROWN}] cursor-pointer ml-auto').on(
+                            'click', lambda _, op_id=op_id, name=op_name: show_preview_for_operator(op_id, name)
+                        ).tooltip('Preview Results')
+                        # Settings icon to configure operator
+                        ui.icon('settings').classes('text-xl text-gray-700 cursor-pointer').on(
+                            'click', lambda _, op_id=op_id: show_operator_config(op_id)
+                        ).tooltip('Configure')
                         # Delete icon with proper closure to avoid issues with lambda variable binding
-                        ui.icon('delete').classes('text-xl text-red-500 cursor-pointer ml-auto').on(
+                        ui.icon('delete').classes('text-xl text-red-500 cursor-pointer').on(
                             'click', lambda _, op_id=op_id, name=op_name, t=tile: delete_operator_by_id(op_id, name, t)
-                        )
+                        ).tooltip('Delete')
 
                     # Show actual operator parameters
                     params = op_data.get('params', {})
@@ -446,6 +452,7 @@ def delete_operator_by_id(operator_id: str, op_name: str, tile):
     pipeline_state.remove_operator(operator_id)  # Remove the operator from the pipeline
     tile.delete()  # Remove the tile directly from the DOM
     ui.notify(f'Removed {op_name}')  # Notify the user
+    clear_results()  # Clear results when pipeline changes
     render_pipeline()  # Re-render the pipeline
 
 def show_operator_config(operator_id: str):
@@ -1062,6 +1069,66 @@ def render_results_section():
         render_mock_results(results_display_container)
 
 
+def clear_results():
+    """Clear the results area"""
+    global results_area
+    if results_area:
+        results_area.clear()
+
+
+def show_preview():
+    """Show the results preview when Preview button is clicked"""
+    pipeline = pipeline_state.get_all_operators()
+    if not pipeline:
+        ui.notify('Please add at least one operator to the pipeline', type='warning')
+        return
+    
+    # Use first operator for preview
+    first_operator = pipeline[0]
+    show_preview_for_operator(first_operator['id'], first_operator['name'])
+
+
+def show_preview_for_operator(operator_id: str, operator_name: str):
+    """Show results preview for a specific operator"""
+    global results_area, current_view
+    
+    logger.info(f"Showing preview for operator: {operator_name} (ID: {operator_id})")
+    
+    # Clear and render results for this operator
+    if results_area:
+        results_area.clear()
+        
+        with results_area:
+            # Header with view toggle
+            with ui.row().classes('w-full items-center justify-between mb-4'):
+                ui.label(f'Preview: {operator_name} (10 results)').classes('text-sm text-gray-600')
+                
+                with ui.row().classes('gap-2'):
+                    ui.button(icon='grid_view', on_click=lambda: toggle_view_for_operator('grid', operator_name)).props(
+                        f'flat dense {"color=primary" if current_view == "grid" else "color=grey"}'
+                    ).tooltip('Grid View')
+                    ui.button(icon='view_list', on_click=lambda: toggle_view_for_operator('list', operator_name)).props(
+                        f'flat dense {"color=primary" if current_view == "list" else "color=grey"}'
+                    ).tooltip('List View')
+            
+            # Results display area - wrap in full width container
+            global results_display_container
+            results_display_container = ui.element('div').classes('w-full')
+            
+            # Show results based on operator type
+            results = MOCK_RESULTS.get(operator_name, MOCK_RESULTS['Metadata Filter'])
+            with results_display_container:
+                # Ensure grid container has full width
+                container = ui.element('div').classes('w-full')
+                with container:
+                    if current_view == 'grid':
+                        render_grid_view(results)
+                    else:
+                        render_list_view(results)
+    
+    ui.notify(f'Preview for {operator_name}', type='positive')
+
+
 def toggle_view(view_type):
     """Toggle between grid and list view"""
     global current_view, results_display_container
@@ -1076,6 +1143,26 @@ def toggle_view(view_type):
                 render_grid_view(results)
             else:
                 render_list_view(results)
+
+
+def toggle_view_for_operator(view_type: str, operator_name: str):
+    """Toggle between grid and list view for a specific operator"""
+    global current_view, results_display_container
+    current_view = view_type
+    logger.info(f"Toggled view to: {view_type} for operator: {operator_name}")
+    
+    # Re-render only the results display container with the operator's results
+    if results_display_container:
+        results_display_container.clear()
+        results = MOCK_RESULTS.get(operator_name, MOCK_RESULTS['Metadata Filter'])
+        # Add full width wrapper
+        with results_display_container:
+            container = ui.element('div').classes('w-full')
+            with container:
+                if current_view == 'grid':
+                    render_grid_view(results)
+                else:
+                    render_list_view(results)
 
 
 def render_mock_results(container):
@@ -1098,16 +1185,16 @@ def render_grid_view(results):
     with ui.element('div').classes('grid grid-cols-5 gap-4 w-full'):
         for result in results:
             # Square tile with image and title below
-            with ui.column().classes('gap-2'):
+            with ui.column().classes('gap-2 min-w-0'):
                 # Image container with fixed aspect ratio
                 with ui.card().classes('w-full p-0 overflow-hidden cursor-pointer hover:shadow-xl transition').style('aspect-ratio: 1/1;'):
                     ui.image(result['image']).classes('w-full h-full object-cover')
                 
-                # Metadata below image
-                with ui.column().classes('gap-0'):
+                # Metadata below image with truncation
+                with ui.column().classes('gap-0 w-full min-w-0'):
                     ui.label(result['title']).classes('text-sm font-bold text-gray-800 truncate')
-                    ui.label(result['artist']).classes('text-xs text-gray-600')
-                    ui.label(f"{result['year']} • {result['inventory']}").classes('text-xs text-gray-500')
+                    ui.label(result['artist']).classes('text-xs text-gray-600 truncate')
+                    ui.label(f"{result['year']} • {result['inventory']}").classes('text-xs text-gray-500 truncate')
 
 
 def render_list_view(results):
