@@ -2,13 +2,31 @@
 Pipeline view component.
 
 This module handles the rendering of the operator pipeline chain,
-including operator tiles with drag-and-drop functionality.
+including operator tiles with reordering via arrow buttons.
 """
 
 from nicegui import ui
 from loguru import logger
 from config import settings
 from search_pipeline.components.operator_library import OPERATOR_DEFINITIONS
+
+
+def move_operator_left(operator_id: str, pipeline_state, show_preview_func, 
+                       show_config_func, delete_operator_func, pipeline_area):
+    """Move operator one position to the left and re-render pipeline."""
+    if pipeline_state.move_left(operator_id):
+        # Re-render before notify to avoid "parent deleted" error
+        render_pipeline(pipeline_state, pipeline_area, show_preview_func, 
+                       show_config_func, delete_operator_func)
+
+
+def move_operator_right(operator_id: str, pipeline_state, show_preview_func, 
+                        show_config_func, delete_operator_func, pipeline_area):
+    """Move operator one position to the right and re-render pipeline."""
+    if pipeline_state.move_right(operator_id):
+        # Re-render before notify to avoid "parent deleted" error
+        render_pipeline(pipeline_state, pipeline_area, show_preview_func, 
+                       show_config_func, delete_operator_func)
 
 
 def render_pipeline(pipeline_state, pipeline_area, show_preview_func, show_config_func, 
@@ -52,8 +70,15 @@ def render_pipeline(pipeline_state, pipeline_area, show_preview_func, show_confi
 
                 with tile:
                     with ui.row().classes('items-center w-full'):
-                        ui.icon('drag_indicator').classes('text-xl text-gray-400 cursor-move')
-                        ui.icon(icon).classes('text-xl text-gray-700')
+                        # Reorder buttons (left/right arrows)
+                        with ui.row().classes('gap-0'):
+                            ui.icon('chevron_left').classes('text-lg text-gray-400 cursor-pointer hover:text-gray-700').on(
+                                'click', lambda _, op_id=op_id: move_operator_left(op_id, pipeline_state, show_preview_func, show_config_func, delete_operator_func, pipeline_area)
+                            ).tooltip('Move Left')
+                            ui.icon('chevron_right').classes('text-lg text-gray-400 cursor-pointer hover:text-gray-700').on(
+                                'click', lambda _, op_id=op_id: move_operator_right(op_id, pipeline_state, show_preview_func, show_config_func, delete_operator_func, pipeline_area)
+                            ).tooltip('Move Right')
+                        ui.icon(icon).classes('text-xl text-gray-700 ml-2')
                         ui.label(op_name).classes('text-gray-800 font-medium ml-2')
                         # Preview icon to show results for this operator
                         ui.icon('visibility').classes(f'text-xl text-[{settings.brown}] cursor-pointer ml-auto').on(
@@ -106,13 +131,7 @@ def render_pipeline(pipeline_state, pipeline_area, show_preview_func, show_confi
                         f'inline-block mt-3 px-2 py-1 text-xs font-medium rounded-md bg-[{settings.brown}] text-white'
                     )
 
-    # Reinitialize Sortable.js for drag-and-drop functionality
-    ui.run_javascript("""
-    new Sortable(document.getElementById('pipeline-container'), {
-        animation: 150,
-        ghostClass: 'opacity-50'
-    });
-    """)
+    # No JavaScript needed - reordering handled by Python buttons
 
 
 def delete_operator_by_id(operator_id: str, op_name: str, tile, pipeline_state, 

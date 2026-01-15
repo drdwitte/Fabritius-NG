@@ -81,12 +81,11 @@ pipeline_state.add_operator('Metadata Filter')
 pipeline_state.add_operator('Semantic Search')
 pipeline_state.add_operator('Similarity Search')
 
-
 ############################################
 ########## HELPER FUNCTIONS ################
 ############################################
 
-def _render_pipeline() -> None:
+def _render_pipeline():
     """Helper to render pipeline with all required dependencies."""
     render_pipeline(
         pipeline_state=pipeline_state,
@@ -137,9 +136,6 @@ def render_search(ui_module) -> None:
     """
     Renders the main search page, including the operator library and the pipeline area.
     """
-    # Load Sortable.js for drag-and-drop functionality
-    ui_module.add_head_html("<script src=\"https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js\"></script>")    
-
     # Title & icon
     with ui_module.row().classes('items-center gap-2 mb-2'):
         ui_module.icon('search').classes('text-2xl text-amber-700')
@@ -192,7 +188,7 @@ def render_search(ui_module) -> None:
 # Register page routes
 @ui.page('/')
 @ui.page('/search')
-def page() -> None:
+def page():
     """Search pipeline page - main application page."""
     build_header()
     render_search(ui)

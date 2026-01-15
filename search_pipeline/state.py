@@ -100,16 +100,31 @@ class PipelineState:
             return True
         return False
     
-    def reorder(self, new_order: List[str]):
+    def move_left(self, operator_id: str) -> bool:
         """
-        Reorders operators based on a list of IDs.
-        Missing IDs are ignored.
+        Moves an operator one position to the left (earlier in pipeline).
+        Returns True if moved, False if already at start or not found.
         """
-        # id_to_operator is a mapping from operator ID to operator dict
-        id_to_operator = {op['id']: op for op in self._operators}
-        # Rebuild the operator list in the new order
-        self._operators = [id_to_operator[op_id] for op_id in new_order if op_id in id_to_operator]
-        logger.info(f"Reordered: {[op['name'] for op in self._operators]}")
+        index = self._find_index(operator_id)
+        if index > 0:  # Can only move left if not at start
+            # Swap with previous operator
+            self._operators[index], self._operators[index - 1] = self._operators[index - 1], self._operators[index]
+            logger.info(f"Moved '{self._operators[index]['name']}' left: {[op['name'] for op in self._operators]}")
+            return True
+        return False
+    
+    def move_right(self, operator_id: str) -> bool:
+        """
+        Moves an operator one position to the right (later in pipeline).
+        Returns True if moved, False if already at end or not found.
+        """
+        index = self._find_index(operator_id)
+        if index != -1 and index < len(self._operators) - 1:  # Can only move right if not at end
+            # Swap with next operator
+            self._operators[index], self._operators[index + 1] = self._operators[index + 1], self._operators[index]
+            logger.info(f"Moved '{self._operators[index]['name']}' right: {[op['name'] for op in self._operators]}")
+            return True
+        return False
     
     def clear(self):
         """Removes all operators from the pipeline."""
