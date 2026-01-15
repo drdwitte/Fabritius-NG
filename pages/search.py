@@ -54,147 +54,136 @@ from search_pipeline.ui_helpers import icon_button, run_button, format_param_val
 from search_pipeline.components.operator_library import render_operator_library
 from search_pipeline.components.results_view import render_results_ui, clear_results, get_cached_results
 from search_pipeline.components.config_panel import show_operator_config
-from search_pipeline.components.pipeline_view import render_pipeline, delete_operator_by_id
+from search_pipeline.components.pipeline_view import render_pipeline
 from search_pipeline.preview_coordinator import show_preview_for_operator
 
+
 class SearchPageUIState:
-    """
-    Container for search page UI element references.
-    
-    Encapsulates all UI element references to avoid global variables.
-    This makes the code more maintainable, easier to debug, and thread-safe.
-    """
-    def __init__(self) -> None:
+    """Container for search page UI element references."""
+    def __init__(self):
         self.pipeline_area = None
         self.pipeline_name_input = None
-        self.config_panel = None  # Current config panel UI element
         self.results_area = None
 
-# Create single UI state instance
-ui_state = SearchPageUIState()
 
-# Pipeline state (data, not UI)
-pipeline_state = PipelineState()
-
-# Initialize with default operators
-pipeline_state.add_operator('Metadata Filter')
-pipeline_state.add_operator('Semantic Search')
-pipeline_state.add_operator('Similarity Search')
-
-############################################
-########## HELPER FUNCTIONS ################
-############################################
-
-def _render_pipeline():
-    """Helper to render pipeline with all required dependencies."""
-    render_pipeline(
-        pipeline_state=pipeline_state,
-        pipeline_area=ui_state.pipeline_area,
-        show_preview_func=_show_preview,
-        show_config_func=_show_config,
-        delete_operator_func=_delete_operator,
-        move_left_func=_move_operator_left,
-        move_right_func=_move_operator_right
-    )
-
-def _show_preview(operator_id: str, operator_name: str) -> None:
-    """Helper to show preview with all required dependencies."""
-    show_preview_for_operator(
-        operator_id=operator_id,
-        operator_name=operator_name,
-        pipeline_state=pipeline_state,
-        results_area=ui_state.results_area,
-        render_results_func=render_results_ui,
-        render_pipeline_func=_render_pipeline
-    )
-
-def _show_config(operator_id: str) -> None:
-    """Helper to show config with all required dependencies."""
-    show_operator_config(
-        operator_id, 
-        pipeline_state, 
-        ui_state, 
-        ui_state.pipeline_area, 
-        _render_pipeline
-    )
-
-def _delete_operator(operator_id: str, op_name: str, tile) -> None:
-    """Helper to delete operator with all required dependencies."""
-    delete_operator_by_id(
-        operator_id=operator_id,
-        op_name=op_name,
-        tile=tile,
-        pipeline_state=pipeline_state,
-        clear_results_func=lambda: clear_results(ui_state.results_area),
-        render_pipeline_func=_render_pipeline
-    )
-
-def _move_operator_left(operator_id: str) -> None:
-    """Helper to move operator left and re-render."""
-    if pipeline_state.move_left(operator_id):
-        _render_pipeline()
-
-def _move_operator_right(operator_id: str) -> None:
-    """Helper to move operator right and re-render."""
-    if pipeline_state.move_right(operator_id):
-        _render_pipeline()
-
-
-############################################
-########## PIPELINE RENDERING ##############
-############################################
-
-def render_search(ui_module):
+class SearchPageController:
     """
-    Renders the main search page, including the operator library and the pipeline area.
-    """
-    # Title & icon
-    with ui_module.row().classes('items-center gap-2 mb-2'):
-        ui_module.icon('search').classes('text-2xl text-amber-700')
-        ui_module.label('Search Pipeline').classes('text-2xl font-bold')
-
-    # Top bar: full width, left input, right buttons
-    with ui_module.row().props('flat').classes('w-full flex items-center justify-between bg-white shadow-sm px-4 py-2 mb-4 rounded'):
-        # Left: input field - store reference for later use
-        ui_state.pipeline_name_input = ui_module.input(
-            placeholder='Pipeline name', 
-            value='Untitled Pipeline'
-        ).props('borderless dense').classes('w-64')
-        # Right: buttons
-        with ui_module.row().classes('gap-2'):
-            icon_button('folder_open', 'Load', lambda: load_pipeline(pipeline_state, render_pipeline))
-            icon_button('save', 'Save', lambda: save_pipeline(pipeline_state, ui_state.pipeline_name_input))
-            run_button('Run', lambda: ui_module.notify('Run clicked'))
+    Controller for the search page.
     
-    # Layout: operator library + operator chain + results preview
-    with ui_module.row().classes('w-full gap-4 flex-nowrap'):
-        # Render operator library
-        def on_operator_added():
-            clear_results(ui_state.results_area)
-            _render_pipeline()
+    Manages pipeline state, UI state, and coordinates all interactions.
+    Eliminates the need for helper closures by encapsulating state and behavior.
+    """
+    
+    def __init__(self):
+        self.ui_state = SearchPageUIState()
+        self.pipeline_state = PipelineState()
         
-        render_operator_library(pipeline_state, on_operator_added)
+        # Initialize with default operators
+        self.pipeline_state.add_operator('Metadata Filter')
+        self.pipeline_state.add_operator('Semantic Search')
+        self.pipeline_state.add_operator('Similarity Search')
+    
+    def render_pipeline(self):
+        """Render the pipeline view."""
+        render_pipeline(self)
+    
+    def show_preview(self, operator_id: str, operator_name: str) -> None:
+        """Show preview for an operator."""
+        show_preview_for_operator(
+            operator_id=operator_id,
+            operator_name=operator_name,
+            pipeline_state=self.pipeline_state,
+            results_area=self.ui_state.results_area,
+            render_results_func=render_results_ui,
+            render_pipeline_func=self.render_pipeline
+        )
+    
+    def show_config(self, operator_id: str) -> None:
+        """Show config panel for an operator."""
+        show_operator_config(
+            operator_id,
+            self.pipeline_state,
+            self.ui_state,
+            self.ui_state.pipeline_area,
+            self.render_pipeline
+        )
+    
+    def delete_operator(self, operator_id: str, op_name: str, tile) -> None:
+        """Delete an operator from the pipeline."""
+        self.pipeline_state.remove_operator(operator_id)
+        tile.delete()
+        ui.notify(f'Removed {op_name}')
+        self.clear_results()
+        self.render_pipeline()
+    
+    def move_operator_left(self, operator_id: str) -> None:
+        """Move operator left and re-render."""
+        if self.pipeline_state.move_left(operator_id):
+            self.render_pipeline()
+    
+    def move_operator_right(self, operator_id: str) -> None:
+        """Move operator right and re-render."""
+        if self.pipeline_state.move_right(operator_id):
+            self.render_pipeline()
+    
+    def clear_results(self):
+        """Clear the results area."""
+        clear_results(self.ui_state.results_area)
+    
+    def on_operator_added(self):
+        """Called when a new operator is added from the library."""
+        self.clear_results()
+        self.render_pipeline()
+    
+    def render_search(self, ui_module):
+        """
+        Renders the main search page, including the operator library and the pipeline area.
+        """
+        # Title & icon
+        with ui_module.row().classes('items-center gap-2 mb-2'):
+            ui_module.icon('search').classes('text-2xl text-amber-700')
+            ui_module.label('Search Pipeline').classes('text-2xl font-bold')
 
-        # Main content (right)
-        with ui_module.column().classes('flex-1 min-w-0 p-4'):
-            ui_module.label('OPERATOR CHAIN').classes('text-xl font-bold mb-2')
-            ui_state.pipeline_area = ui_module.element('div').props('id=pipeline-area')
-            _render_pipeline()
-            
-            # Results section
-            ui_module.label('RESULTS').classes('text-xl font-bold mt-6 mb-2')
-            ui_state.results_area = ui_module.element('div').props('id=results-area').classes('w-full')
-            
-            # Restore cached results if available
-            cached_results, cached_operator_id = get_cached_results()
-            if cached_results:
-                logger.info(f"Restoring cached results: {len(cached_results)} results")
-                # Find operator name from id
-                operator = pipeline_state.get_operator(cached_operator_id)
-                operator_name = operator['name'] if operator else 'Unknown'
-                render_results_ui(cached_results, cached_operator_id, operator_name, ui_state.results_area)
+        # Top bar: full width, left input, right buttons
+        with ui_module.row().props('flat').classes('w-full flex items-center justify-between bg-white shadow-sm px-4 py-2 mb-4 rounded'):
+            # Left: input field - store reference for later use
+            self.ui_state.pipeline_name_input = ui_module.input(
+                placeholder='Pipeline name', 
+                value='Untitled Pipeline'
+            ).props('borderless dense').classes('w-64')
+            # Right: buttons
+            with ui_module.row().classes('gap-2'):
+                icon_button('folder_open', 'Load', lambda: load_pipeline(self.pipeline_state, self.render_pipeline))
+                icon_button('save', 'Save', lambda: save_pipeline(self.pipeline_state, self.ui_state.pipeline_name_input))
+                run_button('Run', lambda: ui_module.notify('Run clicked'))
+        
+        # Layout: operator library + operator chain + results preview
+        with ui_module.row().classes('w-full gap-4 flex-nowrap'):
+            # Render operator library
+            render_operator_library(self.pipeline_state, self.on_operator_added)
+
+            # Main content (right)
+            with ui_module.column().classes('flex-1 min-w-0 p-4'):
+                ui_module.label('OPERATOR CHAIN').classes('text-xl font-bold mb-2')
+                self.ui_state.pipeline_area = ui_module.element('div').props('id=pipeline-area')
+                self.render_pipeline()
+                
+                # Results section
+                ui_module.label('RESULTS').classes('text-xl font-bold mt-6 mb-2')
+                self.ui_state.results_area = ui_module.element('div').props('id=results-area').classes('w-full')
+                
+                # Restore cached results if available
+                cached_results, cached_operator_id = get_cached_results()
+                if cached_results:
+                    logger.info(f"Restoring cached results: {len(cached_results)} results")
+                    # Find operator name from id
+                    operator = self.pipeline_state.get_operator(cached_operator_id)
+                    operator_name = operator['name'] if operator else 'Unknown'
+                    render_results_ui(cached_results, cached_operator_id, operator_name, self.ui_state.results_area)
 
 
+# Create single controller instance
+controller = SearchPageController()
 
 
 # Register page routes
@@ -203,7 +192,7 @@ def render_search(ui_module):
 def page():
     """Search pipeline page - main application page."""
     build_header()
-    render_search(ui)
+    controller.render_search(ui)
 
 
 

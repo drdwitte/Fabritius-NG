@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     
     # UI Configuration
     brown: str = Field(default='#8b4513', description='Primary brown color for UI')
+    max_visible_params: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description='Maximum number of operator parameters to show in pipeline view'
+    )
     button_labels: List[str] = Field(
         default=['SEARCH', 'DETAIL', 'LABEL', 'CHAT', 'INSIGHTS'],
         description='Navigation button labels'

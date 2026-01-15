@@ -10,27 +10,21 @@ from loguru import logger
 from config import settings
 from search_pipeline.components.operator_library import OPERATOR_DEFINITIONS
 
-
-def render_pipeline(pipeline_state, pipeline_area, show_preview_func, show_config_func, 
-                   delete_operator_func, move_left_func, move_right_func):
+def render_pipeline(controller):
     """
     Renders the pipeline area with all operators as tiles.
     
     Args:
-        pipeline_state: PipelineState instance
-        pipeline_area: UI container for the pipeline
-        show_preview_func: Function to show preview for an operator
-        show_config_func: Function to show config panel for an operator
-        delete_operator_func: Function to delete an operator
+        controller: SearchPageController instance with pipeline_state and ui_state
     """
-    pipeline = pipeline_state.get_all_operators()  # Get the current pipeline
+    pipeline = controller.pipeline_state.get_all_operators()  # Get the current pipeline
 
     # Clear the pipeline area before re-rendering
-    if pipeline_area is not None:
-        pipeline_area.clear()
+    if controller.ui_state.pipeline_area is not None:
+        controller.ui_state.pipeline_area.clear()
 
     # Create a new container for the pipeline
-    with pipeline_area:
+    with controller.ui_state.pipeline_area:
         pipeline_container = (
             ui.element('div')
             .classes('flex items-start gap-4 bg-white p-4 rounded')
@@ -52,31 +46,39 @@ def render_pipeline(pipeline_state, pipeline_area, show_preview_func, show_confi
                     with ui.row().classes('items-center w-full'):
                         # Reorder buttons (left/right arrows)
                         with ui.row().classes('gap-0'):
+                            # Left arrow (disabled if first operator)
                             ui.icon('chevron_left').classes('text-lg text-gray-400 cursor-pointer hover:text-gray-700').on(
-                                'click', lambda _, op_id=op_id: move_left_func(op_id)
+                                'click', lambda _, op_id=op_id: controller.move_operator_left(op_id)
                             ).tooltip('Move Left')
+
+                            # Right arrow (disabled if last operator)
                             ui.icon('chevron_right').classes('text-lg text-gray-400 cursor-pointer hover:text-gray-700').on(
-                                'click', lambda _, op_id=op_id: move_right_func(op_id)
+                                'click', lambda _, op_id=op_id: controller.move_operator_right(op_id)
                             ).tooltip('Move Right')
+                        
+                        # Operator icon and name
                         ui.icon(icon).classes('text-xl text-gray-700 ml-2')
                         ui.label(op_name).classes('text-gray-800 font-medium ml-2')
+                        
                         # Preview icon to show results for this operator
                         ui.icon('visibility').classes(f'text-xl text-[{settings.brown}] cursor-pointer ml-auto').on(
-                            'click', lambda _, op_id=op_id, name=op_name: show_preview_func(op_id, name)
+                            'click', lambda _, op_id=op_id, name=op_name: controller.show_preview(op_id, name)
                         ).tooltip('Preview Results')
+                        
                         # Settings icon to configure operator
                         ui.icon('settings').classes('text-xl text-gray-700 cursor-pointer').on(
-                            'click', lambda _, op_id=op_id: show_config_func(op_id)
+                            'click', lambda _, op_id=op_id: controller.show_config(op_id)
                         ).tooltip('Configure')
-                        # Delete icon with proper closure to avoid issues with lambda variable binding
+                        
+                        # Delete icon
                         ui.icon('delete').classes('text-xl text-red-500 cursor-pointer').on(
-                            'click', lambda _, op_id=op_id, name=op_name, t=tile: delete_operator_func(op_id, name, t)
+                            'click', lambda _, op_id=op_id, name=op_name, t=tile: controller.delete_operator(op_id, name, t)
                         ).tooltip('Delete')
 
                     # Show actual operator parameters
                     params = op_data.get('params', {})
                     if params:
-                        for param_name, param_value in list(params.items())[:3]:  # Show max 3 params
+                        for param_name, param_value in list(params.items())[:settings.max_visible_params]:
                             # Format the value nicely
                             if isinstance(param_value, dict) and 'filename' in param_value:
                                 # For image type, show filename only (not base64 data)
@@ -112,23 +114,3 @@ def render_pipeline(pipeline_state, pipeline_area, show_preview_func, show_confi
                     )
 
     # No JavaScript needed - reordering handled by Python buttons
-
-
-def delete_operator_by_id(operator_id: str, op_name: str, tile, pipeline_state, 
-                         clear_results_func, render_pipeline_func):
-    """
-    Deletes an operator from the pipeline by ID and removes its tile from the UI.
-    
-    Args:
-        operator_id: The unique ID of the operator to delete
-        op_name: The name of the operator (for notification)
-        tile: The UI tile element to remove from the DOM
-        pipeline_state: PipelineState instance
-        clear_results_func: Function to clear results area
-        render_pipeline_func: Function to re-render pipeline
-    """
-    pipeline_state.remove_operator(operator_id)  # Remove the operator from the pipeline
-    tile.delete()  # Remove the tile directly from the DOM
-    ui.notify(f'Removed {op_name}')  # Notify the user
-    clear_results_func()  # Clear results when pipeline changes
-    render_pipeline_func()  # Re-render the pipeline

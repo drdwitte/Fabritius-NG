@@ -34,8 +34,25 @@ class PipelineState:
     def add_operator(self, operator_name: str) -> str:
         """
         Adds an operator to the pipeline.
-        Returns the unique ID of the operator instance.
+        
+        Args:
+            operator_name: Name of the operator (must exist in OPERATOR_DEFINITIONS)
+        
+        Returns:
+            Unique ID of the operator instance
+            
+        Raises:
+            ValueError: If operator_name is not a valid operator
         """
+        # Validate operator name
+        from search_pipeline.components.operator_library import OPERATOR_DEFINITIONS
+        if operator_name not in OPERATOR_DEFINITIONS:
+            valid_names = ', '.join(OPERATOR_DEFINITIONS.keys())
+            raise ValueError(
+                f"Unknown operator '{operator_name}'. "
+                f"Valid operators: {valid_names}"
+            )
+        
         # Generate a unique ID for the operator, 
         # 2 operators with same name can coexist and will have different IDs
         operator_id = str(uuid.uuid4())
