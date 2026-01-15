@@ -11,26 +11,8 @@ from config import settings
 from search_pipeline.components.operator_library import OPERATOR_DEFINITIONS
 
 
-def move_operator_left(operator_id: str, pipeline_state, show_preview_func, 
-                       show_config_func, delete_operator_func, pipeline_area):
-    """Move operator one position to the left and re-render pipeline."""
-    if pipeline_state.move_left(operator_id):
-        # Re-render before notify to avoid "parent deleted" error
-        render_pipeline(pipeline_state, pipeline_area, show_preview_func, 
-                       show_config_func, delete_operator_func)
-
-
-def move_operator_right(operator_id: str, pipeline_state, show_preview_func, 
-                        show_config_func, delete_operator_func, pipeline_area):
-    """Move operator one position to the right and re-render pipeline."""
-    if pipeline_state.move_right(operator_id):
-        # Re-render before notify to avoid "parent deleted" error
-        render_pipeline(pipeline_state, pipeline_area, show_preview_func, 
-                       show_config_func, delete_operator_func)
-
-
 def render_pipeline(pipeline_state, pipeline_area, show_preview_func, show_config_func, 
-                   delete_operator_func):
+                   delete_operator_func, move_left_func, move_right_func):
     """
     Renders the pipeline area with all operators as tiles.
     
@@ -51,7 +33,6 @@ def render_pipeline(pipeline_state, pipeline_area, show_preview_func, show_confi
     with pipeline_area:
         pipeline_container = (
             ui.element('div')
-            .props('id=pipeline-container')
             .classes('flex items-start gap-4 bg-white p-4 rounded')
         )
 
@@ -65,7 +46,6 @@ def render_pipeline(pipeline_state, pipeline_area, show_preview_func, show_confi
                 # Create a tile for the operator
                 tile = (ui.element('div')
                     .classes('flex flex-col gap-0 px-2 py-2 rounded-xl bg-white shadow-sm min-w-[180px] hover:shadow-md transition')
-                    .props(f'data-operator-id="{op_id}"')
                 )
 
                 with tile:
@@ -73,10 +53,10 @@ def render_pipeline(pipeline_state, pipeline_area, show_preview_func, show_confi
                         # Reorder buttons (left/right arrows)
                         with ui.row().classes('gap-0'):
                             ui.icon('chevron_left').classes('text-lg text-gray-400 cursor-pointer hover:text-gray-700').on(
-                                'click', lambda _, op_id=op_id: move_operator_left(op_id, pipeline_state, show_preview_func, show_config_func, delete_operator_func, pipeline_area)
+                                'click', lambda _, op_id=op_id: move_left_func(op_id)
                             ).tooltip('Move Left')
                             ui.icon('chevron_right').classes('text-lg text-gray-400 cursor-pointer hover:text-gray-700').on(
-                                'click', lambda _, op_id=op_id: move_operator_right(op_id, pipeline_state, show_preview_func, show_config_func, delete_operator_func, pipeline_area)
+                                'click', lambda _, op_id=op_id: move_right_func(op_id)
                             ).tooltip('Move Right')
                         ui.icon(icon).classes('text-xl text-gray-700 ml-2')
                         ui.label(op_name).classes('text-gray-800 font-medium ml-2')

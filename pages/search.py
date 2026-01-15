@@ -92,7 +92,9 @@ def _render_pipeline():
         pipeline_area=ui_state.pipeline_area,
         show_preview_func=_show_preview,
         show_config_func=_show_config,
-        delete_operator_func=_delete_operator
+        delete_operator_func=_delete_operator,
+        move_left_func=_move_operator_left,
+        move_right_func=_move_operator_right
     )
 
 def _show_preview(operator_id: str, operator_name: str) -> None:
@@ -127,12 +129,22 @@ def _delete_operator(operator_id: str, op_name: str, tile) -> None:
         render_pipeline_func=_render_pipeline
     )
 
+def _move_operator_left(operator_id: str) -> None:
+    """Helper to move operator left and re-render."""
+    if pipeline_state.move_left(operator_id):
+        _render_pipeline()
+
+def _move_operator_right(operator_id: str) -> None:
+    """Helper to move operator right and re-render."""
+    if pipeline_state.move_right(operator_id):
+        _render_pipeline()
+
 
 ############################################
 ########## PIPELINE RENDERING ##############
 ############################################
 
-def render_search(ui_module) -> None:
+def render_search(ui_module):
     """
     Renders the main search page, including the operator library and the pipeline area.
     """

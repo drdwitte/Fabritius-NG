@@ -88,30 +88,6 @@ def format_param_value(value) -> str:
         return str(value)[:30]
 
 
-async def sync_from_dom(pipeline_state):
-    """
-    Syncs the pipeline state from the DOM order (DOM is source of truth).
-    
-    Args:
-        pipeline_state: The PipelineState instance to update
-    """
-    
-    # Use JavaScript to read the current order from DOM
-    result = await ui.run_javascript('''
-        const container = document.getElementById('pipeline-container');
-        if (container) {
-            return Array.from(container.children)
-                .map(tile => tile.getAttribute('data-operator-id'))
-                .filter(id => id !== null);
-        }
-        return [];
-    ''', timeout=1.0)
-    
-    if result:
-        pipeline_state.reorder(result)
-        logger.info(f"Synced from DOM: {[op['name'] for op in pipeline_state.get_all_operators()]}")
-
-
 async def save_pipeline(pipeline_state, pipeline_name_input):
     """
     Shows a dialog to save the pipeline with a custom filename.
@@ -120,9 +96,6 @@ async def save_pipeline(pipeline_state, pipeline_name_input):
         pipeline_state: The PipelineState instance to save
         pipeline_name_input: UI input element containing the pipeline name
     """
-    # Sync state from DOM before saving
-    await sync_from_dom(pipeline_state)
-    
     # Get the pipeline name from the input field, or use default
     suggested_name = pipeline_name_input.value.strip() if pipeline_name_input and pipeline_name_input.value.strip() else 'Untitled Pipeline'
     
