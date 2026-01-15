@@ -83,138 +83,13 @@ class OperatorBuilder:
         return (self._name, self._operator)
 
 
-def _build_operator_definitions() -> Dict[str, Any]:
-    """
-    Build operator definitions using builder pattern.
-    This is much more readable and maintainable than nested dictionaries.
-    """
-    operators = {}
-    
-    # Metadata Filter Operator
-    name, definition = (
-        OperatorBuilder('Metadata Filter')
-        .icon('filter_alt')
-        .description('Filter artworks by metadata attributes')
-        .param('source', 
-            ParamBuilder('multiselect')
-            .label('Source Collection')
-            .description('Filter by collection source (FILTER IN operation)')
-            .default([])
-            .options([])  # To be populated from disk
-        )
-        .param('artist',
-            ParamBuilder('text')
-            .label('Artist Name')
-            .description('Full or partial artist name')
-            .default('')
-        )
-        .param('title',
-            ParamBuilder('text')
-            .label('Artwork Title')
-            .description('Full or partial artwork title')
-            .default('')
-        )
-        .param('inventory_number',
-            ParamBuilder('text')
-            .label('Inventory Number')
-            .description('Full or partial inventory number')
-            .default('')
-        )
-        .param('year_range',
-            ParamBuilder('range')
-            .label('Year Range')
-            .description('Filter by creation year range')
-            .default([None, None])
-            .min_value(1400)
-            .max_value(2024)
-        )
-        .param('result_mode',
-            ParamBuilder('select')
-            .label('Result Mode')
-            .description('How to apply this filter')
-            .default('replace_all')
-            .options({
-                'replace_all': 'Replace All Results',
-                'filter_previous': 'Filter Previous Results'
-            })
-        )
-        .build()
-    )
-    operators[name] = definition
-    
-    # Semantic Search Operator
-    name, definition = (
-        OperatorBuilder('Semantic Search')
-        .icon('search')
-        .description('AI-powered search using natural language queries')
-        .param('query_text',
-            ParamBuilder('text')
-            .label('Search Query')
-            .description('Natural language search query')
-            .default('')
-            .required()
-        )
-        .param('top_k',
-            ParamBuilder('number')
-            .label('Number of Results')
-            .description('Maximum number of results to return')
-            .default(15)
-            .min_value(1)
-            .max_value(100)
-        )
-        .param('result_mode',
-            ParamBuilder('select')
-            .label('Result Mode')
-            .description('How to apply this search')
-            .default('replace_all')
-            .options({
-                'replace_all': 'Replace All Results',
-                'filter_previous': 'Filter Previous Results'
-            })
-        )
-        .build()
-    )
-    operators[name] = definition
-    
-    # Similarity Search Operator
-    name, definition = (
-        OperatorBuilder('Similarity Search')
-        .icon('image_search')
-        .description('Find similar artworks by uploading an image')
-        .param('query_image',
-            ParamBuilder('image')
-            .label('Upload Image')
-            .description('Upload an image to find similar artworks')
-            .default(None)
-            .required()
-        )
-        .param('top_k',
-            ParamBuilder('number')
-            .label('Number of Results')
-            .description('Maximum number of results to return')
-            .default(15)
-            .min_value(1)
-            .max_value(100)
-        )
-        .param('result_mode',
-            ParamBuilder('select')
-            .label('Result Mode')
-            .description('How to apply this search')
-            .default('replace_all')
-            .options({
-                'replace_all': 'Replace All Results',
-                'filter_previous': 'Filter Previous Results'
-            })
-        )
-        .build()
-    )
-    operators[name] = definition
-    
-    return operators
+# Import registry and auto-register all operators
+import search_pipeline.operator_registration  # noqa: F401 - triggers auto-registration
+from search_pipeline.operator_registry import OperatorRegistry
 
-
-# Build operator definitions once at module load
-OPERATOR_DEFINITIONS = _build_operator_definitions()
+# Expose registry as OPERATOR_DEFINITIONS for backward compatibility
+# TODO: Migrate all code to use OperatorRegistry directly
+OPERATOR_DEFINITIONS = OperatorRegistry.get_all_definitions()
 
 
 def operator_card(operator_name: str, on_add):
@@ -229,7 +104,7 @@ def operator_card(operator_name: str, on_add):
     
     with ui.row().classes('w-full items-center gap-3 p-3 rounded-lg bg-white shadow hover:bg-gray-100 transition'):
         # Operator icon
-        ui.icon(operator['icon']).classes(f'text-3xl text-[{settings.brown}]')
+        ui.icon(operator['icon']).classes(f'text-3xl text-[{settings.primary_color}]')
         
         # Operator title + description
         with ui.column().classes('flex-1 items-start gap-0'):
@@ -240,7 +115,7 @@ def operator_card(operator_name: str, on_add):
         (
             ui.button(icon='add', on_click=on_add)
                 .props('round color=none text-color=none')
-                .classes(f'bg-[{settings.brown}] text-white ml-auto text-xs p-0')
+                .classes(f'bg-[{settings.primary_color}] text-white ml-auto text-xs p-0')
         )
 
 

@@ -8,7 +8,8 @@ including operator tiles with reordering via arrow buttons.
 from nicegui import ui
 from loguru import logger
 from config import settings
-from search_pipeline.components.operator_library import OPERATOR_DEFINITIONS
+import search_pipeline.operator_registration  # noqa: F401 - ensures operators are registered
+from search_pipeline.operator_registry import OperatorRegistry
 
 def render_pipeline(controller):
     """
@@ -34,7 +35,7 @@ def render_pipeline(controller):
             for op_data in pipeline:
                 op_id = op_data['id']
                 op_name = op_data['name']
-                operator = OPERATOR_DEFINITIONS.get(op_name, {'icon': 'tune', 'description': 'Unknown operator'})
+                operator = OperatorRegistry.get_metadata(op_name)
                 icon = operator['icon']
 
                 # Create a tile for the operator
@@ -61,7 +62,7 @@ def render_pipeline(controller):
                         ui.label(op_name).classes('text-gray-800 font-medium ml-2')
                         
                         # Preview icon to show results for this operator
-                        ui.icon('visibility').classes(f'text-xl text-[{settings.brown}] cursor-pointer ml-auto').on(
+                        ui.icon('visibility').classes(f'text-xl text-[{settings.primary_color}] cursor-pointer ml-auto').on(
                             'click', lambda _, op_id=op_id, name=op_name: controller.show_preview(op_id, name)
                         ).tooltip('Preview Results')
                         
@@ -110,7 +111,7 @@ def render_pipeline(controller):
                         count_text = f"{result_count} results"
                     
                     ui.label(count_text).classes(
-                        f'inline-block mt-3 px-2 py-1 text-xs font-medium rounded-md bg-[{settings.brown}] text-white'
+                        f'inline-block mt-3 px-2 py-1 text-xs font-medium rounded-md bg-[{settings.primary_color}] text-white'
                     )
 
     # No JavaScript needed - reordering handled by Python buttons

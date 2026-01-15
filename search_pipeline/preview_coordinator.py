@@ -10,7 +10,8 @@ more extensible operator handling.
 
 from nicegui import ui
 from loguru import logger
-from .operator_implementations import OperatorFactory
+import search_pipeline.operator_registration  # noqa: F401 - ensures operators are registered
+from search_pipeline.operator_registry import OperatorRegistry
 
 
 def show_preview_for_operator(operator_id: str, operator_name: str, pipeline_state, 
@@ -53,7 +54,7 @@ def show_preview_for_operator(operator_id: str, operator_name: str, pipeline_sta
     
     # Get operator instance from factory (Strategy pattern)
     try:
-        operator = OperatorFactory.create(operator_name)
+        operator = OperatorRegistry.create(operator_name)
     except KeyError:
         logger.error(f"Unknown operator type: {operator_name}")
         with results_area:

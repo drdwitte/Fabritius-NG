@@ -12,7 +12,8 @@ from .operators import execute_semantic_search, execute_metadata_filter, execute
 from .ui_helpers import icon_button, run_button, format_param_value, save_pipeline, load_pipeline, show_artwork_detail
 from .preview_coordinator import show_preview_for_operator
 from .operator_base import Operator
-from .operator_implementations import OperatorFactory, SemanticSearchOperator, MetadataFilterOperator, SimilaritySearchOperator
+from .operator_implementations import SemanticSearchOperator, MetadataFilterOperator, SimilaritySearchOperator
+from .operator_registry import OperatorRegistry
 
 __all__ = [
     'PipelineState',
@@ -27,7 +28,7 @@ __all__ = [
     'show_artwork_detail',
     'show_preview_for_operator',
     'Operator',
-    'OperatorFactory',
+    'OperatorRegistry',
     'SemanticSearchOperator',
     'MetadataFilterOperator',
     'SimilaritySearchOperator',

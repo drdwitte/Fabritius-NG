@@ -45,9 +45,11 @@ class PipelineState:
             ValueError: If operator_name is not a valid operator
         """
         # Validate operator name
-        from search_pipeline.components.operator_library import OPERATOR_DEFINITIONS
-        if operator_name not in OPERATOR_DEFINITIONS:
-            valid_names = ', '.join(OPERATOR_DEFINITIONS.keys())
+        import search_pipeline.operator_registration  # noqa: F401 - ensures operators are registered
+        from search_pipeline.operator_registry import OperatorRegistry
+        
+        if not OperatorRegistry.is_registered(operator_name):
+            valid_names = ', '.join(OperatorRegistry.get_all_names())
             raise ValueError(
                 f"Unknown operator '{operator_name}'. "
                 f"Valid operators: {valid_names}"

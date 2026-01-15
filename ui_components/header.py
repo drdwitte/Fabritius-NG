@@ -89,7 +89,7 @@ class HeaderBuilder:
                     ui.button(
                         label,
                         on_click=on_click_callback
-                    ).props('color=none text-color=none').classes(f'bg-white text-[{settings.brown}] font-bold px-4 py-2 rounded')
+                    ).props('color=none text-color=none').classes(f'bg-white text-[{settings.primary_color}] font-bold px-4 py-2 rounded')
                     #.props call removes quasar default styles; then these are overwritten with classes from tailwind
 
                 # Login button with distinct style
@@ -98,5 +98,5 @@ class HeaderBuilder:
                     ui.button(
                         label,
                         on_click=on_click_callback if on_click_callback else None
-                    ).props('color=none text-color=none').classes(f'bg-[{settings.brown}] text-white font-bold px-4 py-2 rounded')
+                    ).props('color=none text-color=none').classes(f'bg-[{settings.primary_color}] text-white font-bold px-4 py-2 rounded')
                     #.props call removes quasar default styles; then these are overwritten with classes from tailwind

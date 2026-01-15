@@ -131,7 +131,7 @@ async def save_pipeline(pipeline_state, pipeline_name_input):
         
         with ui.row().classes('w-full justify-end gap-2 mt-6'):
             ui.button('Cancel', on_click=dialog.close).props('flat color=grey')
-            ui.button('Save', on_click=handle_save).props('color=none text-color=none').classes(f'bg-[{settings.brown}] text-white')
+            ui.button('Save', on_click=handle_save).props('color=none text-color=none').classes(f'bg-[{settings.primary_color}] text-white')
     
     dialog.open()
 

@@ -37,7 +37,10 @@ class Settings(BaseSettings):
     subtitle: str = Field(default='an AI-powered CMS', description='Application subtitle')
     
     # UI Configuration
-    brown: str = Field(default='#8b4513', description='Primary brown color for UI')
+    primary_color: str = Field(
+        default='#8b4513', 
+        description='Primary theme color for UI (default: brown)'
+    )
     max_visible_params: int = Field(
         default=3,
         ge=1,

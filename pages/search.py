@@ -64,6 +64,7 @@ class SearchPageUIState:
         self.pipeline_area = None
         self.pipeline_name_input = None
         self.results_area = None
+        self.config_panel = None  # Floating config panel (cleaned up automatically)
 
 
 class SearchPageController:

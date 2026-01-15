@@ -10,7 +10,8 @@ import base64
 from nicegui import ui
 from loguru import logger
 from config import settings
-from search_pipeline.components.operator_library import OPERATOR_DEFINITIONS
+import search_pipeline.operator_registration  # noqa: F401 - ensures operators are registered
+from search_pipeline.operator_registry import OperatorRegistry
 
 
 def show_operator_config(operator_id: str, pipeline_state, ui_state, pipeline_area, render_pipeline_func):
@@ -70,11 +71,11 @@ def show_operator_config(operator_id: str, pipeline_state, ui_state, pipeline_ar
             ui.button(icon='close', on_click=close_panel).props('flat round dense')
         
         # Get operator info
-        operator = OPERATOR_DEFINITIONS.get(op_name, {})
+        operator = OperatorRegistry.get_metadata(op_name)
         
         # Operator icon and description
         with ui.row().classes('items-center gap-3 mb-6 p-3 bg-gray-50 rounded-lg'):
-            ui.icon(operator.get('icon', 'tune')).classes(f'text-2xl text-[{settings.brown}]')
+            ui.icon(operator.get('icon', 'tune')).classes(f'text-2xl text-[{settings.primary_color}]')
             ui.label(operator.get('description', 'No description')).classes('text-sm text-gray-600')
         
         # Parameters section
@@ -305,7 +306,7 @@ def render_dynamic_filter_ui(params_schema, existing_params, operator_id, op_nam
             'Add Filter',
             icon='add',
             on_click=lambda: (filters_container.move(create_filter_row()['container']), None)
-        ).props('outline').classes(f'text-[{settings.brown}]')
+        ).props('outline').classes(f'text-[{settings.primary_color}]')
     
     # Action buttons for dynamic filters
     def apply_params():

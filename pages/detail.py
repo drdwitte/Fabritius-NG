@@ -52,7 +52,7 @@ def render_detail(ui_instance):
         image_url = image_path
     
     # Back button
-    ui.button('← Back to Search', on_click=lambda: ui.navigate.to('/search')).props('flat').classes(f'mb-4 text-[{settings.brown}]')
+    ui.button('← Back to Search', on_click=lambda: ui.navigate.to('/search')).props('flat').classes(f'mb-4 text-[{settings.primary_color}]')
     
     # Main content: image + metadata side by side
     with ui.row().classes('w-full gap-6'):
@@ -72,17 +72,17 @@ def render_detail(ui_instance):
             
             # Artist
             with ui.row().classes('items-center gap-2'):
-                ui.icon('person').classes(f'text-[{settings.brown}]')
+                ui.icon('person').classes(f'text-[{settings.primary_color}]')
                 ui.label(artist).classes('text-lg text-gray-700')
             
             # Year
             with ui.row().classes('items-center gap-2'):
-                ui.icon('calendar_today').classes(f'text-[{settings.brown}]')
+                ui.icon('calendar_today').classes(f'text-[{settings.primary_color}]')
                 ui.label(year).classes('text-lg text-gray-700')
             
             # Inventory number
             with ui.row().classes('items-center gap-2'):
-                ui.icon('tag').classes(f'text-[{settings.brown}]')
+                ui.icon('tag').classes(f'text-[{settings.primary_color}]')
                 ui.label(f'Inventory: {inventory}').classes('text-sm text-gray-600')
             
             ui.separator()
@@ -98,7 +98,7 @@ def render_detail(ui_instance):
             for field_key, label, icon in metadata_fields:
                 if field_key in artwork_data and artwork_data[field_key]:
                     with ui.row().classes('items-start gap-2 mt-2'):
-                        ui.icon(icon).classes(f'text-[{settings.brown}] mt-1')
+                        ui.icon(icon).classes(f'text-[{settings.primary_color}] mt-1')
                         with ui.column().classes('gap-0'):
                             ui.label(label).classes('text-xs text-gray-500 uppercase')
                             ui.label(str(artwork_data[field_key])).classes('text-sm text-gray-700')

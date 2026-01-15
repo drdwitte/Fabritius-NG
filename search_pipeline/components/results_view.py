@@ -181,7 +181,7 @@ def render_list_view(results):
                         ui.label(result['artist']).classes('text-sm text-gray-600')
                         with ui.row().classes('gap-2 mt-1'):
                             ui.badge(result['year']).props('color=grey')
-                            ui.badge(result['inventory']).props(f'color=none').classes(f'bg-[{BROWN}] text-white')
+                            ui.badge(result['inventory']).props(f'color=none').classes(f'bg-[{settings.primary_color}] text-white')
 
 
 def clear_results(results_area):
