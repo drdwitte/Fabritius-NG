@@ -1,8 +1,47 @@
 from nicegui import ui
-from ui_components.config import BROWN
+from typing import Callable
+from config import settings
 
 def report_click(label):
     ui.notify(f'Report: {label} was clicked!', position='bottom')
+
+
+def navigate_to(label: str) -> Callable:
+    """
+    Create a navigation callback for the given label.
+    
+    Returns a closure (=callable function) that navigates to the route when called.
+    This allows configuring the route NOW, but executing navigation LATER (on button click).
+    
+    Example: navigate_to('Search') returns a function that navigates to '/search'
+    
+    Args:
+        label: Page label ('Search', 'Detail', etc.)
+        
+    Returns:
+        Function that navigates to /{label.lower()} when called
+    """
+    def _navigate() -> None:
+        route = '/' if label.lower() == 'search' else f'/{label.lower()}'
+        ui.navigate.to(route)
+    return _navigate
+
+
+def build_header() -> None:
+    """Build the application header with navigation buttons."""
+    header = (
+        HeaderBuilder()
+        .with_title(settings.title)
+        .with_subtitle(settings.subtitle)
+        .with_button('Search', navigate_to('Search'))
+        .with_button('Detail', navigate_to('Detail'))
+        .with_button('Label', navigate_to('Label'))
+        .with_button('Chat', navigate_to('Chat'))
+        .with_button('Insights', navigate_to('Insights'))
+        .with_login_button(settings.login_label, navigate_to(settings.login_label))
+    )
+    header.build()
+
 
 class HeaderBuilder:
     def __init__(self):
@@ -50,7 +89,7 @@ class HeaderBuilder:
                     ui.button(
                         label,
                         on_click=on_click_callback
-                    ).props('color=none text-color=none').classes(f'bg-white text-[{BROWN}] font-bold px-4 py-2 rounded')
+                    ).props('color=none text-color=none').classes(f'bg-white text-[{settings.brown}] font-bold px-4 py-2 rounded')
                     #.props call removes quasar default styles; then these are overwritten with classes from tailwind
 
                 # Login button with distinct style
@@ -59,5 +98,5 @@ class HeaderBuilder:
                     ui.button(
                         label,
                         on_click=on_click_callback if on_click_callback else None
-                    ).props('color=none text-color=none').classes(f'bg-[{BROWN}] text-white font-bold px-4 py-2 rounded')
+                    ).props('color=none text-color=none').classes(f'bg-[{settings.brown}] text-white font-bold px-4 py-2 rounded')
                     #.props call removes quasar default styles; then these are overwritten with classes from tailwind

@@ -11,12 +11,12 @@ from typing import List, Optional, Dict
 import base64
 from loguru import logger  # Custom logger for logging messages
 
-# API keys
+# API keys - try FABRITIUS_ prefix first, fallback to direct name
 from dotenv import load_dotenv # Load environment variables from a .env file
 load_dotenv()  # Load environment variables from .env file
-openai_api_key = os.getenv("OPENAI_API_KEY")  # Get OpenAI API key from environment variable    
+openai_api_key = os.getenv("FABRITIUS_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
-    raise ValueError("De OPENAI_API_KEY omgevingsvariabele is niet ingesteld.")
+    raise ValueError("De OPENAI_API_KEY omgevingsvariabele is niet ingesteld. Gebruik FABRITIUS_OPENAI_API_KEY of OPENAI_API_KEY.")
 
 #AI libraries
 from openai import OpenAI  # Class for creating OpenAI clients

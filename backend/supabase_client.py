@@ -27,8 +27,9 @@ class SupabaseClient:
     
     def __init__(self):
         load_dotenv()
-        self.url = os.getenv("SUPABASE_URL")
-        self.key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        # Try FABRITIUS_ prefix first, fallback to direct name
+        self.url = os.getenv("FABRITIUS_SUPABASE_URL") or os.getenv("SUPABASE_URL")
+        self.key = os.getenv("FABRITIUS_SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         self.client: Client = create_client(self.url, self.key)
         
     def get_artworks(self, page: int = 1, items_per_page: int = 12, search_params: dict = None) -> List[Dict]:

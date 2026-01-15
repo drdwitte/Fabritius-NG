@@ -1,18 +1,37 @@
-from nicegui import ui, app
+from nicegui import ui
 from backend.supabase_client import SupabaseClient
-from ui_components.config import IMAGE_BASE_URL, BROWN
+from config import settings
+from ui_components.header import build_header
 from loguru import logger
 
-# Temporary storage for artwork data (simple in-memory dict)
-_artwork_storage = {}
+class DetailPageState:
+    """
+    Container for detail page state.
+    
+    Encapsulates artwork data to avoid global variables.
+    This makes the code more maintainable, easier to debug, and thread-safe.
+    """
+    def __init__(self) -> None:
+        self.current_artwork = None
+    
+    def set_artwork(self, artwork_data: dict) -> None:
+        """Store artwork data for display."""
+        self.current_artwork = artwork_data
+    
+    def get_artwork(self) -> dict:
+        """Retrieve current artwork data."""
+        return self.current_artwork
+
+# Create single state instance
+page_state = DetailPageState()
 
 def render_detail(ui_instance):
     """Render detail view for a single artwork.
     
-    Reads artwork data from module-level _artwork_storage dict
+    Reads artwork data from page_state.
     """
     # Get artwork data from storage
-    artwork_data = _artwork_storage.get('current_artwork')
+    artwork_data = page_state.get_artwork()
     
     if not artwork_data:
         ui.label('No artwork selected').classes('text-xl text-gray-600')
@@ -28,12 +47,12 @@ def render_detail(ui_instance):
     
     # Construct full image URL if needed
     if image_path and not image_path.startswith('http'):
-        image_url = f"{IMAGE_BASE_URL}{image_path}" if image_path.startswith('/') else f"{IMAGE_BASE_URL}/{image_path}"
+        image_url = f"{settings.image_base_url}{image_path}" if image_path.startswith('/') else f"{settings.image_base_url}/{image_path}"
     else:
         image_url = image_path
     
     # Back button
-    ui.button('← Back to Search', on_click=lambda: ui.navigate.to('/search')).props('flat').classes(f'mb-4 text-[{BROWN}]')
+    ui.button('← Back to Search', on_click=lambda: ui.navigate.to('/search')).props('flat').classes(f'mb-4 text-[{settings.brown}]')
     
     # Main content: image + metadata side by side
     with ui.row().classes('w-full gap-6'):
@@ -53,17 +72,17 @@ def render_detail(ui_instance):
             
             # Artist
             with ui.row().classes('items-center gap-2'):
-                ui.icon('person').classes(f'text-[{BROWN}]')
+                ui.icon('person').classes(f'text-[{settings.brown}]')
                 ui.label(artist).classes('text-lg text-gray-700')
             
             # Year
             with ui.row().classes('items-center gap-2'):
-                ui.icon('calendar_today').classes(f'text-[{BROWN}]')
+                ui.icon('calendar_today').classes(f'text-[{settings.brown}]')
                 ui.label(year).classes('text-lg text-gray-700')
             
             # Inventory number
             with ui.row().classes('items-center gap-2'):
-                ui.icon('tag').classes(f'text-[{BROWN}]')
+                ui.icon('tag').classes(f'text-[{settings.brown}]')
                 ui.label(f'Inventory: {inventory}').classes('text-sm text-gray-600')
             
             ui.separator()
@@ -79,7 +98,19 @@ def render_detail(ui_instance):
             for field_key, label, icon in metadata_fields:
                 if field_key in artwork_data and artwork_data[field_key]:
                     with ui.row().classes('items-start gap-2 mt-2'):
-                        ui.icon(icon).classes(f'text-[{BROWN}] mt-1')
+                        ui.icon(icon).classes(f'text-[{settings.brown}] mt-1')
                         with ui.column().classes('gap-0'):
                             ui.label(label).classes('text-xs text-gray-500 uppercase')
                             ui.label(str(artwork_data[field_key])).classes('text-sm text-gray-700')
+
+@ui.page('/detail')
+def page() -> None:
+    """Detail view page for individual artworks."""
+    build_header()
+    render_detail(ui)
+
+
+# Public accessor function
+def set_artwork_data(artwork_data: dict) -> None:
+    """Store artwork data for display on detail page."""
+    page_state.set_artwork(artwork_data)
