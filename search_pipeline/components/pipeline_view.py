@@ -10,6 +10,9 @@ from loguru import logger
 from config import settings
 import search_pipeline.operator_registration  # noqa: F401 - ensures operators are registered
 from search_pipeline.operator_registry import OperatorRegistry
+from search_pipeline.preview_coordinator import show_preview_for_operator
+from search_pipeline.components.results_view import render_results_ui
+from search_pipeline.components.config_panel import show_operator_config
 
 def render_pipeline(controller):
     """
@@ -63,12 +66,25 @@ def render_pipeline(controller):
                         
                         # Preview icon to show results for this operator
                         ui.icon('visibility').classes(f'text-xl text-[{settings.primary_color}] cursor-pointer ml-auto').on(
-                            'click', lambda _, op_id=op_id, name=op_name: controller.show_preview(op_id, name)
+                            'click', lambda _, op_id=op_id, name=op_name: show_preview_for_operator(
+                                operator_id=op_id,
+                                operator_name=name,
+                                pipeline_state=controller.pipeline_state,
+                                results_area=controller.ui_state.results_area,
+                                render_results_func=render_results_ui,
+                                render_pipeline_func=lambda: render_pipeline(controller)
+                            )
                         ).tooltip('Preview Results')
                         
                         # Settings icon to configure operator
                         ui.icon('settings').classes('text-xl text-gray-700 cursor-pointer').on(
-                            'click', lambda _, op_id=op_id: controller.show_config(op_id)
+                            'click', lambda _, op_id=op_id: show_operator_config(
+                                op_id,
+                                controller.pipeline_state,
+                                controller.ui_state,
+                                controller.ui_state.pipeline_area,
+                                lambda: render_pipeline(controller)
+                            )
                         ).tooltip('Configure')
                         
                         # Delete icon

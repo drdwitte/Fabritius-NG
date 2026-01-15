@@ -5,7 +5,7 @@ This module registers all available operators in the central registry.
 Import this module early to ensure all operators are registered before use.
 """
 
-from search_pipeline.operator_registry import OperatorRegistry
+from search_pipeline.operator_registry import OperatorRegistry, OperatorNames
 from search_pipeline.operator_implementations import (
     SemanticSearchOperator,
     MetadataFilterOperator,
@@ -20,7 +20,7 @@ from search_pipeline.components.operator_library import (
 def _register_metadata_filter():
     """Register Metadata Filter operator."""
     _, definition = (
-        OperatorBuilder('Metadata Filter')
+        OperatorBuilder(OperatorNames.METADATA_FILTER)
         .icon('filter_alt')
         .description('Filter artworks by metadata attributes')
         .param('source', 
@@ -70,7 +70,7 @@ def _register_metadata_filter():
     )
     
     OperatorRegistry.register(
-        name='Metadata Filter',
+        name=OperatorNames.METADATA_FILTER,
         icon=definition['icon'],
         description=definition['description'],
         params=definition['params'],
@@ -81,7 +81,7 @@ def _register_metadata_filter():
 def _register_semantic_search():
     """Register Semantic Search operator."""
     _, definition = (
-        OperatorBuilder('Semantic Search')
+        OperatorBuilder(OperatorNames.SEMANTIC_SEARCH)
         .icon('search')
         .description('AI-powered search using natural language queries')
         .param('query_text',
@@ -113,7 +113,7 @@ def _register_semantic_search():
     )
     
     OperatorRegistry.register(
-        name='Semantic Search',
+        name=OperatorNames.SEMANTIC_SEARCH,
         icon=definition['icon'],
         description=definition['description'],
         params=definition['params'],
@@ -124,7 +124,7 @@ def _register_semantic_search():
 def _register_similarity_search():
     """Register Similarity Search operator."""
     _, definition = (
-        OperatorBuilder('Similarity Search')
+        OperatorBuilder(OperatorNames.SIMILARITY_SEARCH)
         .icon('image_search')
         .description('Find similar artworks by uploading an image')
         .param('query_image',
@@ -156,7 +156,7 @@ def _register_similarity_search():
     )
     
     OperatorRegistry.register(
-        name='Similarity Search',
+        name=OperatorNames.SIMILARITY_SEARCH,
         icon=definition['icon'],
         description=definition['description'],
         params=definition['params'],

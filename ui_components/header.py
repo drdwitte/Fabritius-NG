@@ -1,6 +1,7 @@
 from nicegui import ui
 from typing import Callable
 from config import settings
+from loguru import logger
 
 def report_click(label):
     ui.notify(f'Report: {label} was clicked!', position='bottom')
@@ -23,6 +24,7 @@ def navigate_to(label: str) -> Callable:
     """
     def _navigate() -> None:
         route = '/' if label.lower() == 'search' else f'/{label.lower()}'
+        logger.info(f"Navigating to {label} page (route: {route})")
         ui.navigate.to(route)
     return _navigate
 

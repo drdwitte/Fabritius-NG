@@ -14,6 +14,14 @@ from loguru import logger
 from search_pipeline.operator_base import Operator
 
 
+# Operator name constants - single source of truth
+class OperatorNames:
+    """Centralized operator name constants."""
+    METADATA_FILTER = "Metadata Filter"
+    SEMANTIC_SEARCH = "Semantic Search"
+    SIMILARITY_SEARCH = "Similarity Search"
+
+
 class OperatorRegistry:
     """
     Central registry for all operators.

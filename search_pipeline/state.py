@@ -10,6 +10,8 @@ import uuid
 import copy
 from typing import List, Dict, Optional
 from loguru import logger
+import search_pipeline.operator_registration  # noqa: F401 - ensures operators are registered
+from search_pipeline.operator_registry import OperatorRegistry
 
 
 class PipelineState:
@@ -45,9 +47,6 @@ class PipelineState:
             ValueError: If operator_name is not a valid operator
         """
         # Validate operator name
-        import search_pipeline.operator_registration  # noqa: F401 - ensures operators are registered
-        from search_pipeline.operator_registry import OperatorRegistry
-        
         if not OperatorRegistry.is_registered(operator_name):
             valid_names = ', '.join(OperatorRegistry.get_all_names())
             raise ValueError(

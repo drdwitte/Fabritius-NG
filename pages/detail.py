@@ -106,6 +106,7 @@ def render_detail(ui_instance):
 @ui.page('/detail')
 def page() -> None:
     """Detail view page for individual artworks."""
+    logger.info("Loading Detail page")
     build_header()
     render_detail(ui)
 

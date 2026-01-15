@@ -48,15 +48,11 @@ from ui_components.header import build_header
 
 # Search pipeline - state & helpers
 from search_pipeline.state import PipelineState
-from search_pipeline.ui_helpers import icon_button, run_button, format_param_value, save_pipeline, load_pipeline, show_artwork_detail
+from search_pipeline.ui_helpers import icon_button, run_button, save_pipeline, load_pipeline
+from search_pipeline.operator_registry import OperatorNames
 
 # Search pipeline - components
-from search_pipeline.components.operator_library import render_operator_library
-from search_pipeline.components.results_view import render_results_ui, clear_results, get_cached_results
-from search_pipeline.components.config_panel import show_operator_config
-from search_pipeline.components.pipeline_view import render_pipeline
-from search_pipeline.preview_coordinator import show_preview_for_operator
-
+from search_pipeline.components import operator_library, results_view, pipeline_view
 
 class SearchPageUIState:
     """Container for search page UI element references."""
@@ -70,7 +66,6 @@ class SearchPageUIState:
 class SearchPageController:
     """
     Controller for the search page.
-    
     Manages pipeline state, UI state, and coordinates all interactions.
     Eliminates the need for helper closures by encapsulating state and behavior.
     """
@@ -80,61 +75,32 @@ class SearchPageController:
         self.pipeline_state = PipelineState()
         
         # Initialize with default operators
-        self.pipeline_state.add_operator('Metadata Filter')
-        self.pipeline_state.add_operator('Semantic Search')
-        self.pipeline_state.add_operator('Similarity Search')
+        self.pipeline_state.add_operator(OperatorNames.METADATA_FILTER)
+        self.pipeline_state.add_operator(OperatorNames.SEMANTIC_SEARCH)
+        self.pipeline_state.add_operator(OperatorNames.SIMILARITY_SEARCH)
     
-    def render_pipeline(self):
-        """Render the pipeline view."""
-        render_pipeline(self)
-    
-    def show_preview(self, operator_id: str, operator_name: str) -> None:
-        """Show preview for an operator."""
-        show_preview_for_operator(
-            operator_id=operator_id,
-            operator_name=operator_name,
-            pipeline_state=self.pipeline_state,
-            results_area=self.ui_state.results_area,
-            render_results_func=render_results_ui,
-            render_pipeline_func=self.render_pipeline
-        )
-    
-    def show_config(self, operator_id: str) -> None:
-        """Show config panel for an operator."""
-        show_operator_config(
-            operator_id,
-            self.pipeline_state,
-            self.ui_state,
-            self.ui_state.pipeline_area,
-            self.render_pipeline
-        )
-    
-    def delete_operator(self, operator_id: str, op_name: str, tile) -> None:
+    def delete_operator(self, operator_id: str, op_name: str, tile):
         """Delete an operator from the pipeline."""
         self.pipeline_state.remove_operator(operator_id)
         tile.delete()
         ui.notify(f'Removed {op_name}')
-        self.clear_results()
-        self.render_pipeline()
+        results_view.clear_results(self.ui_state.results_area)
+        pipeline_view.render_pipeline(self)
     
-    def move_operator_left(self, operator_id: str) -> None:
+    def move_operator_left(self, operator_id: str):
         """Move operator left and re-render."""
         if self.pipeline_state.move_left(operator_id):
-            self.render_pipeline()
+            pipeline_view.render_pipeline(self)
     
-    def move_operator_right(self, operator_id: str) -> None:
+    def move_operator_right(self, operator_id: str):
         """Move operator right and re-render."""
         if self.pipeline_state.move_right(operator_id):
-            self.render_pipeline()
-    
-    def clear_results(self):
-        """Clear the results area."""
-        clear_results(self.ui_state.results_area)
+            pipeline_view.render_pipeline(self)
     
     def on_operator_added(self):
         """Called when a new operator is added from the library."""
-        self.clear_results()
-        self.render_pipeline()
+        results_view.clear_results(self.ui_state.results_area)
+        pipeline_view.render_pipeline(self)
     
     def render_search(self, ui_module):
         """
@@ -154,33 +120,33 @@ class SearchPageController:
             ).props('borderless dense').classes('w-64')
             # Right: buttons
             with ui_module.row().classes('gap-2'):
-                icon_button('folder_open', 'Load', lambda: load_pipeline(self.pipeline_state, self.render_pipeline))
+                icon_button('folder_open', 'Load', lambda: load_pipeline(self.pipeline_state, lambda: pipeline_view.render_pipeline(self)))
                 icon_button('save', 'Save', lambda: save_pipeline(self.pipeline_state, self.ui_state.pipeline_name_input))
                 run_button('Run', lambda: ui_module.notify('Run clicked'))
         
         # Layout: operator library + operator chain + results preview
         with ui_module.row().classes('w-full gap-4 flex-nowrap'):
             # Render operator library
-            render_operator_library(self.pipeline_state, self.on_operator_added)
+            operator_library.render_operator_library(self.pipeline_state, self.on_operator_added)
 
             # Main content (right)
             with ui_module.column().classes('flex-1 min-w-0 p-4'):
                 ui_module.label('OPERATOR CHAIN').classes('text-xl font-bold mb-2')
                 self.ui_state.pipeline_area = ui_module.element('div').props('id=pipeline-area')
-                self.render_pipeline()
+                pipeline_view.render_pipeline(self)
                 
                 # Results section
                 ui_module.label('RESULTS').classes('text-xl font-bold mt-6 mb-2')
                 self.ui_state.results_area = ui_module.element('div').props('id=results-area').classes('w-full')
                 
                 # Restore cached results if available
-                cached_results, cached_operator_id = get_cached_results()
+                cached_results, cached_operator_id = results_view.get_cached_results()
                 if cached_results:
                     logger.info(f"Restoring cached results: {len(cached_results)} results")
                     # Find operator name from id
                     operator = self.pipeline_state.get_operator(cached_operator_id)
                     operator_name = operator['name'] if operator else 'Unknown'
-                    render_results_ui(cached_results, cached_operator_id, operator_name, self.ui_state.results_area)
+                    results_view.render_results_ui(cached_results, cached_operator_id, operator_name, self.ui_state.results_area)
 
 
 # Create single controller instance
@@ -192,6 +158,7 @@ controller = SearchPageController()
 @ui.page('/search')
 def page():
     """Search pipeline page - main application page."""
+    logger.info("Loading Search page")
     build_header()
     controller.render_search(ui)
 
