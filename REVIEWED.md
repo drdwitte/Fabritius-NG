@@ -65,6 +65,9 @@ The heart of the search functionality. Review these to understand the Strategy P
 |------|--------|-------|
 | `search_pipeline/operator_base.py` | 🎯 | Abstract Operator class (Strategy interface) |
 | `search_pipeline/operator_implementations.py` | 🎯 | Concrete operators + OperatorFactory |
+| `search_pipeline/operator_builder.py` | ✅ 2026-01-16 | ParamBuilder & OperatorBuilder (extracted to break circular import) |
+| `search_pipeline/operator_registry.py` | ✅ 2026-01-16 | Central operator registry with OperatorNames constants |
+| `search_pipeline/operator_registration.py` | ✅ 2026-01-16 | Register all operators (6 total: Text/Metadata/Similarity + Pose/Sketch/Color) |
 
 ### Orchestration
 | File | Status | Notes |
@@ -130,10 +133,10 @@ Validation and test coverage.
 
 ## 📊 Review Statistics
 
-**Total Files:** 33  
-**Reviewed:** 10 (30%)  
+**Total Files:** 36  
+**Reviewed:** 13 (36%)  
 **In Progress:** 0 (0%)  
-**Pending:** 23 (70%)  
+**Pending:** 23 (64%)  
 
 **Last Updated:** 2026-01-16
 
