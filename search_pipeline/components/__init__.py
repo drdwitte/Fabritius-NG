@@ -13,6 +13,7 @@ from .results_view import render_results_ui, render_grid_view, render_list_view,
 from .config_panel import show_operator_config, render_dynamic_filter_ui, render_static_form_ui, render_conditional_fields
 from .pipeline_view import render_pipeline
 
+# This serves as documentation of the intended public interface of this package, what can be used by other modules.
 __all__ = [
     'render_operator_library',
     'operator_card',

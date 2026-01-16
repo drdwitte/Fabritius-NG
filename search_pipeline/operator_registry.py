@@ -40,7 +40,7 @@ class OperatorRegistry:
                  icon: str, 
                  description: str,
                  params: Dict[str, Any],
-                 implementation: Type[Operator]) -> None:
+                 implementation: Type[Operator]):
         """
         Register an operator with all its metadata and implementation.
         

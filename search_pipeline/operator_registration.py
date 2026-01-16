@@ -321,6 +321,7 @@ def register_all_operators():
     Register all available operators.
     
     Call this function once at application startup to populate the registry.
+    Called automatically when search_pipeline module is imported.
     """
     _register_metadata_filter()
     _register_semantic_search()
@@ -328,7 +329,3 @@ def register_all_operators():
     _register_pose_search()
     _register_sketch_search()
     _register_color_search()
-
-
-# Auto-register on module import
-register_all_operators()

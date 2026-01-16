@@ -1,23 +1,25 @@
 """
 Pipeline state management.
-
 This module contains the PipelineState class that manages the search pipeline configuration,
 including operators, their parameters, and result counts.
 """
 
+# Standard library imports
 import json
 import uuid
 import copy
 from typing import List, Dict, Optional
 from loguru import logger
-import search_pipeline.operator_registration  # noqa: F401 - ensures operators are registered
-from search_pipeline.operator_registry import OperatorRegistry
 
+#this class keeps track of all (possible) operators in the pipeline
+from search_pipeline.operator_registry import OperatorRegistry
 
 class PipelineState:
     """
-    Manages the state of the search pipeline.
-    Each operator instance has a unique ID and can store parameters.
+    Manages the search pipeline configuration (application state).
+    Stores which operators are in the pipeline, their parameters, and execution results.
+    This is domain/application state, not pure UI state. Each operator instance has a 
+    unique UUID, allowing multiple instances of the same type with different configs.
     """
     
     def __init__(self):
@@ -54,8 +56,7 @@ class PipelineState:
                 f"Valid operators: {valid_names}"
             )
         
-        # Generate a unique ID for the operator, 
-        # 2 operators with same name can coexist and will have different IDs
+        # Generate a unique ID for the operator, 2 operators with same name can coexist, with different IDs
         operator_id = str(uuid.uuid4())
         operator = {
             'id': operator_id,
@@ -156,8 +157,7 @@ class PipelineState:
     def from_json(self, json_string: str):
         """
         Import pipeline from JSON string.
-        
-        Note: This should be enhanced with validation in the future.
+        TODO: This should be enhanced with validation in the future.
         """
         self._operators = json.loads(json_string)
         logger.info(f"Loaded {len(self._operators)} operators from JSON")
