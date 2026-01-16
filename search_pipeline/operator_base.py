@@ -5,6 +5,7 @@ This module defines the Strategy pattern interface for operators,
 allowing new operator types to be added without modifying existing code.
 """
 
+#ABC = Abstract Base Class
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, Any
 
@@ -46,36 +47,10 @@ class Operator(ABC):
         pass
     
     @abstractmethod
-    def get_config_schema(self) -> Dict[str, Any]:
-        """
-        Get the configuration schema for this operator.
-        
-        Returns:
-            Dictionary describing the parameters this operator accepts.
-            Used to generate the configuration UI dynamically.
-        """
-        pass
-    
-    @abstractmethod
-    def validate_params(self, params: Dict[str, Any]) -> Tuple[bool, List[str]]:
-        """
-        Validate operator parameters.
-        
-        Args:
-            params: Parameters to validate
-            
-        Returns:
-            Tuple of (is_valid, error_messages):
-            - is_valid: True if all parameters are valid
-            - error_messages: List of error messages if invalid
-        """
-        pass
-    
-    @abstractmethod
     def is_configured(self, params: Dict[str, Any]) -> bool:
         """
         Check if operator has minimum required configuration.
-        
+      
         Args:
             params: Current operator parameters
             
@@ -84,22 +59,14 @@ class Operator(ABC):
         """
         pass
     
-    @abstractmethod
     def get_loading_message(self) -> str:
         """
         Get the loading message to display during execution.
-        
-        Returns:
-            User-friendly message shown while operator is executing
         """
-        pass
+        return 'Retrieving results from SQL database...'
     
-    @abstractmethod
     def get_unconfigured_message(self) -> str:
         """
         Get the message to display when operator is not configured.
-        
-        Returns:
-            User-friendly message prompting user to configure operator
         """
-        pass
+        return f'Please configure the {self.name} first'
