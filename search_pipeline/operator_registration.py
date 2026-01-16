@@ -9,9 +9,12 @@ from search_pipeline.operator_registry import OperatorRegistry, OperatorNames
 from search_pipeline.operator_implementations import (
     SemanticSearchOperator,
     MetadataFilterOperator,
-    SimilaritySearchOperator
+    SimilaritySearchOperator,
+    PoseSearchOperator,
+    SketchSearchOperator,
+    ColorSearchOperator
 )
-from search_pipeline.components.operator_library import (
+from search_pipeline.operator_builder import (
     ParamBuilder,
     OperatorBuilder
 )
@@ -164,6 +167,155 @@ def _register_similarity_search():
     )
 
 
+def _register_pose_search():
+    """Register Pose Search operator."""
+    _, definition = (
+        OperatorBuilder(OperatorNames.POSE_SEARCH)
+        .icon('accessibility_new')
+        .description('Find artworks with similar human poses')
+        .param('pose',
+            ParamBuilder('text')
+            .label('Pose Description')
+            .description('Describe the body pose or posture (e.g., "Standing figures", "Seated person")')
+            .default('')
+            .required(True)
+        )
+        .param('confidence',
+            ParamBuilder('number')
+            .label('Confidence Threshold')
+            .description('Minimum AI confidence level for pose detection')
+            .default(0.7)
+            .min_value(0.0)
+            .max_value(1.0)
+        )
+        .param('top_k',
+            ParamBuilder('number')
+            .label('Number of Results')
+            .description('Maximum number of results to return')
+            .default(15)
+            .min_value(1)
+            .max_value(100)
+        )
+        .param('result_mode',
+            ParamBuilder('select')
+            .label('Result Mode')
+            .description('How to apply this search')
+            .default('replace_all')
+            .options({
+                'replace_all': 'Replace All Results',
+                'filter_previous': 'Filter Previous Results'
+            })
+        )
+        .build()
+    )
+    
+    OperatorRegistry.register(
+        name=OperatorNames.POSE_SEARCH,
+        icon=definition['icon'],
+        description=definition['description'],
+        params=definition['params'],
+        implementation=PoseSearchOperator
+    )
+
+
+def _register_sketch_search():
+    """Register Sketch Search operator."""
+    _, definition = (
+        OperatorBuilder(OperatorNames.SKETCH_SEARCH)
+        .icon('brush')
+        .description('Search by drawing or uploading a sketch')
+        .param('sketch_data',
+            ParamBuilder('canvas')
+            .label('Sketch')
+            .description('Draw a rough sketch of the composition you are looking for')
+            .default(None)
+            .required(True)
+        )
+        .param('top_k',
+            ParamBuilder('number')
+            .label('Number of Results')
+            .description('Maximum number of results to return')
+            .default(15)
+            .min_value(1)
+            .max_value(100)
+        )
+        .param('result_mode',
+            ParamBuilder('select')
+            .label('Result Mode')
+            .description('How to apply this search')
+            .default('replace_all')
+            .options({
+                'replace_all': 'Replace All Results',
+                'filter_previous': 'Filter Previous Results'
+            })
+        )
+        .build()
+    )
+    
+    OperatorRegistry.register(
+        name=OperatorNames.SKETCH_SEARCH,
+        icon=definition['icon'],
+        description=definition['description'],
+        params=definition['params'],
+        implementation=SketchSearchOperator
+    )
+
+
+def _register_color_search():
+    """Register Color-Based Search operator."""
+    _, definition = (
+        OperatorBuilder(OperatorNames.COLOR_SEARCH)
+        .icon('palette')
+        .description('Find artworks by dominant colors or color palette')
+        .param('colors',
+            ParamBuilder('multiselect')
+            .label('Colors')
+            .description('Select one or more colors to search for')
+            .default([])
+            .options([
+                'Red', 'Orange', 'Yellow', 'Green', 'Blue', 
+                'Purple', 'Pink', 'Brown', 'Black', 'White', 'Gray'
+            ])
+            .required(True)
+        )
+        .param('color_tolerance',
+            ParamBuilder('number')
+            .label('Color Tolerance')
+            .description('How closely colors must match (0 = exact, 1 = loose)')
+            .default(0.3)
+            .min_value(0.0)
+            .max_value(1.0)
+        )
+        .param('top_k',
+            ParamBuilder('number')
+            .label('Number of Results')
+            .description('Maximum number of results to return')
+            .default(15)
+            .min_value(1)
+            .max_value(100)
+        )
+        .param('result_mode',
+            ParamBuilder('select')
+            .label('Result Mode')
+            .description('How to apply this search')
+            .default('replace_all')
+            .options({
+                'replace_all': 'Replace All Results',
+                'filter_previous': 'Filter Previous Results'
+            })
+        )
+        .build()
+    )
+    
+    OperatorRegistry.register(
+        name=OperatorNames.COLOR_SEARCH,
+        icon=definition['icon'],
+        description=definition['description'],
+        params=definition['params'],
+        implementation=ColorSearchOperator
+    )
+
+
 def register_all_operators():
     """
     Register all available operators.
@@ -173,6 +325,9 @@ def register_all_operators():
     _register_metadata_filter()
     _register_semantic_search()
     _register_similarity_search()
+    _register_pose_search()
+    _register_sketch_search()
+    _register_color_search()
 
 
 # Auto-register on module import

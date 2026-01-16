@@ -35,7 +35,7 @@ Top-level page modules with @ui.page decorators. Review in order of complexity.
 | File | Status | Notes |
 |------|--------|-------|
 | `pages/search.py` | ✅ 2026-01-16  | 142 lines, no wrappers, module prefixes, OperatorNames constants |
-| `pages/detail.py` | ⏳ | Artwork detail view with metadata display |
+| `pages/detail.py` | ✅ | Artwork detail view with metadata display |
 | `pages/label.py` | ✅ 2026-01-15 | Placeholder page |
 | `pages/chat.py` | ✅ 2026-01-15 | Placeholder page |
 | `pages/insights.py` | ✅ 2026-01-15 | Placeholder page |
@@ -48,7 +48,7 @@ Reusable UI building blocks used across pages.
 
 | File | Status | Notes |
 |------|--------|-------|
-| `ui_components/header.py` | ⏳ | HeaderBuilder pattern, navigate_to closure, build_header |
+| `ui_components/header.py` | ✅ 2026-01-16 | Builder pattern, Command pattern (navigate_to closure), extracted constants (logo, RESET_QUASAR_COLORS), helper methods for button creation |
 
 ---
 
@@ -121,6 +121,7 @@ Validation and test coverage.
 
 | File | Status | Notes |
 |------|--------|-------|
+| `routes.py` | ✅ 2026-01-16 | Route constants pattern - centralized route definitions |
 | `requirements.txt` | ⏳ | Python dependencies |
 | `README.md` | ⏳ | Project documentation |
 | `LICENSE` | ⏳ | License information |
@@ -129,12 +130,12 @@ Validation and test coverage.
 
 ## 📊 Review Statistics
 
-**Total Files:** 32  
-**Reviewed:** 3 (9%)  
+**Total Files:** 33  
+**Reviewed:** 10 (30%)  
 **In Progress:** 0 (0%)  
-**Pending:** 29 (91%)  
+**Pending:** 23 (70%)  
 
-**Last Updated:** 2026-01-14
+**Last Updated:** 2026-01-16
 
 ---
 
@@ -173,6 +174,13 @@ Validation and test coverage.
 - **Operator definitions**: Moved from config.py to operator_library.py with Builder pattern
 - **Better separation**: config.py = environment settings, operator_library.py = UI schemas
 - **Improved readability**: OperatorBuilder + ParamBuilder instead of nested dicts
+
+### Refactoring Completed (2026-01-16)
+- **Route Constants Pattern**: Created routes.py with centralized route definitions
+- **Eliminated magic strings**: All hardcoded route strings replaced with constants
+- **Header improvements**: Removed dead code (report_click), improved navigate_to with explicit route mapping
+- **Consistency**: All @ui.page() decorators and ui.navigate.to() calls now use route constants
+- **Maintainability**: Single source of truth for routes, easier to refactor in future
 
 ### Pending Review Focus Areas
 - Operator execution logic and error handling

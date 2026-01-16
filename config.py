@@ -11,6 +11,9 @@ from typing import List, Dict, Any
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Quasar component property string to reset default colors and enable full Tailwind control, use as .setProps(RESET_QUASAR_COLORS) argument
+RESET_QUASAR_COLORS = 'color=none text-color=none'
+
 class Settings(BaseSettings):
     """
     Application settings with environment variable support.
@@ -40,6 +43,14 @@ class Settings(BaseSettings):
     primary_color: str = Field(
         default='#8b4513', 
         description='Primary theme color for UI (default: brown)'
+    )
+    logo: str = Field(
+        default='static/logo-kmskb.svg',
+        description='Path to application logo'
+    )
+    logo_link: str = Field(
+        default='https://fine-arts-museum.be/nl/onderzoek/digitaal-museum',
+        description='External link for logo click'
     )
     max_visible_params: int = Field(
         default=3,

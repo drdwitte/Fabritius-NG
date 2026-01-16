@@ -9,6 +9,7 @@ from loguru import logger
 from nicegui import ui
 from config import settings
 from pages import detail
+import routes
 
 
 def icon_button(icon_name: str, label: str, on_click, bg='bg-white', text='text-gray-700', border='border-gray-300'):
@@ -175,4 +176,4 @@ def show_artwork_detail(artwork_data):
     detail.page_state.set_artwork(artwork_data)
     
     # Navigate to detail route
-    ui.navigate.to('/detail')
+    ui.navigate.to(routes.ROUTE_DETAIL)

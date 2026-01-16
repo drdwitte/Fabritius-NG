@@ -6,7 +6,7 @@ ARCHITECTURE: Thin Coordinator Pattern
 This module acts as a THIN COORDINATOR - it only handles UI layout and routing. No business logic lives here!
 
 Responsibilities:
-- Define page route (@ui.page('/search'))
+- Define page route (using route constants from routes.py)
 - Create UI layout structure (header, pipeline area, config panel, results area)
 - Maintain UIState references to UI elements
 - Provide wrapper functions that delegate to specialized modules
@@ -42,9 +42,10 @@ All actual logic lives in search_pipeline package!
 # Third-party libraries
 from nicegui import ui
 from loguru import logger
+import routes
 
 # UI components
-from ui_components.header import build_header
+from ui_components.header import render_header
 
 # Search pipeline - state & helpers
 from search_pipeline.state import PipelineState
@@ -154,12 +155,12 @@ controller = SearchPageController()
 
 
 # Register page routes
-@ui.page('/')
-@ui.page('/search')
+@ui.page(routes.ROUTE_HOME)
+@ui.page(routes.ROUTE_SEARCH)
 def page():
     """Search pipeline page - main application page."""
     logger.info("Loading Search page")
-    build_header()
+    render_header()
     controller.render_search(ui)
 
 

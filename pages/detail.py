@@ -1,8 +1,9 @@
 from nicegui import ui
 from backend.supabase_client import SupabaseClient
 from config import settings
-from ui_components.header import build_header
+from ui_components.header import render_header
 from loguru import logger
+import routes
 
 class DetailPageState:
     """
@@ -35,7 +36,7 @@ def render_detail(ui_instance):
     
     if not artwork_data:
         ui.label('No artwork selected').classes('text-xl text-gray-600')
-        ui.button('Back to Search', icon='arrow_back', on_click=lambda: ui.navigate.to('/search')).props('flat')
+        ui.button('Back to Search', icon='arrow_back', on_click=lambda: ui.navigate.to(routes.ROUTE_HOME)).props('flat')
         return
     
     # Extract artwork data
@@ -52,7 +53,7 @@ def render_detail(ui_instance):
         image_url = image_path
     
     # Back button
-    ui.button('← Back to Search', on_click=lambda: ui.navigate.to('/search')).props('flat').classes(f'mb-4 text-[{settings.primary_color}]')
+    ui.button('← Back to Search', on_click=lambda: ui.navigate.to(routes.ROUTE_HOME)).props('flat').classes(f'mb-4 text-[{settings.primary_color}]')
     
     # Main content: image + metadata side by side
     with ui.row().classes('w-full gap-6'):
@@ -103,11 +104,11 @@ def render_detail(ui_instance):
                             ui.label(label).classes('text-xs text-gray-500 uppercase')
                             ui.label(str(artwork_data[field_key])).classes('text-sm text-gray-700')
 
-@ui.page('/detail')
+@ui.page(routes.ROUTE_DETAIL)
 def page() -> None:
     """Detail view page for individual artworks."""
     logger.info("Loading Detail page")
-    build_header()
+    render_header()
     render_detail(ui)
 
 

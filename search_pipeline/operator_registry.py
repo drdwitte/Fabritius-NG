@@ -20,6 +20,9 @@ class OperatorNames:
     METADATA_FILTER = "Metadata Filter"
     SEMANTIC_SEARCH = "Semantic Search"
     SIMILARITY_SEARCH = "Similarity Search"
+    POSE_SEARCH = "Pose Search"
+    SKETCH_SEARCH = "Sketch Search"
+    COLOR_SEARCH = "Color-Based Search"
 
 
 class OperatorRegistry:
