@@ -51,6 +51,10 @@ from ui_components.header import render_header
 from search_pipeline.state import PipelineState
 from search_pipeline.ui_helpers import icon_button, run_button, save_pipeline, load_pipeline
 from search_pipeline.operator_registry import OperatorNames
+from search_pipeline.operator_registration import register_all_operators
+
+# Initialize operators (idempotent - safe to call multiple times)
+register_all_operators()
 
 # Search pipeline - components
 from search_pipeline.components import operator_library, results_view, pipeline_view

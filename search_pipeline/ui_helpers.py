@@ -5,11 +5,14 @@ This module contains reusable UI components and utility functions
 that don't belong to a specific component.
 """
 
+# Third-party imports
 from loguru import logger
 from nicegui import ui
+
+# Local imports
+import routes
 from config import settings
 from pages import detail
-import routes
 
 
 def icon_button(icon_name: str, label: str, on_click, bg='bg-white', text='text-gray-700', border='border-gray-300'):

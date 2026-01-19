@@ -10,7 +10,6 @@ import base64
 from nicegui import ui
 from loguru import logger
 from config import settings
-import search_pipeline.operator_registration  # noqa: F401 - ensures operators are registered
 from search_pipeline.operator_registry import OperatorRegistry
 
 

@@ -9,10 +9,13 @@ import json
 import uuid
 import copy
 from typing import List, Dict, Optional
+
+# Third-party imports
 from loguru import logger
 
-#this class keeps track of all (possible) operators in the pipeline
+# Local imports
 from search_pipeline.operator_registry import OperatorRegistry
+
 
 class PipelineState:
     """

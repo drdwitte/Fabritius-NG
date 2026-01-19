@@ -5,6 +5,8 @@ This module registers all available operators in the central registry.
 Import this module early to ensure all operators are registered before use.
 """
 
+from loguru import logger
+
 from search_pipeline.operator_registry import OperatorRegistry, OperatorNames
 from search_pipeline.operator_implementations import (
     SemanticSearchOperator,
@@ -316,16 +318,27 @@ def _register_color_search():
     )
 
 
+# Track if operators are already registered to make this idempotent
+_operators_registered = False
+
 def register_all_operators():
     """
     Register all available operators.
     
-    Call this function once at application startup to populate the registry.
-    Called automatically when search_pipeline module is imported.
+    Call this function to populate the registry. Safe to call multiple times (idempotent).
+    Typically called from pages/search.py when the search page is first accessed.
     """
+    global _operators_registered
+    if _operators_registered:
+        logger.debug("Operators already registered, skipping")
+        return
+    
+    logger.info("Registering all operators...")
     _register_metadata_filter()
     _register_semantic_search()
     _register_similarity_search()
     _register_pose_search()
     _register_sketch_search()
     _register_color_search()
+    _operators_registered = True
+    logger.info(f"Successfully registered {len(OperatorRegistry._registry)} operators")

@@ -8,7 +8,6 @@ including operator tiles with reordering via arrow buttons.
 from nicegui import ui
 from loguru import logger
 from config import settings
-import search_pipeline.operator_registration  # noqa: F401 - ensures operators are registered
 from search_pipeline.operator_registry import OperatorRegistry
 from search_pipeline.preview_coordinator import show_preview_for_operator
 from search_pipeline.components.results_view import render_results_ui
