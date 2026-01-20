@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     #Pydantic syntax: type hints for validation, default values, descriptions for documentation
     title: str = Field(default='Hensor Workbench', description='Application title')
     subtitle: str = Field(default='an AI-powered CMS', description='Application subtitle')
+    base_path: str = Field(default='', description='Base path for reverse proxy deployment (e.g., "/fabritius" for nginx)')
     
     # UI Configuration
     primary_color: str = Field(
