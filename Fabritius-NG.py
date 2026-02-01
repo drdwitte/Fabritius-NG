@@ -23,5 +23,6 @@ if __name__ in {"__main__", "__mp_main__"}:
         title=settings.title,
         host=settings.host,
         port=settings.port,
-        reload=settings.reload
+        reload=settings.reload,
+        storage_secret=settings.session_secret  # Required for app.storage.user
     )

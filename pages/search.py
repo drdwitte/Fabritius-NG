@@ -40,7 +40,7 @@ All actual logic lives in search_pipeline package!
 """
 
 # Third-party libraries
-from nicegui import ui
+from nicegui import ui, app
 from loguru import logger
 import routes
 
@@ -51,13 +51,9 @@ from ui_components.header import render_header
 from search_pipeline.state import PipelineState
 from search_pipeline.ui_helpers import icon_button, run_button, save_pipeline, load_pipeline
 from search_pipeline.operator_registry import OperatorNames
-from search_pipeline.operator_registration import register_all_operators
-
-# Initialize operators (idempotent - safe to call multiple times)
-register_all_operators()
 
 # Search pipeline - components
-from search_pipeline.components import operator_library, results_view, pipeline_view
+from search_pipeline.views import operator_library, results_view, pipeline_view
 
 class SearchPageUIState:
     """Container for search page UI element references."""
@@ -73,11 +69,15 @@ class SearchPageController:
     Controller for the search page.
     Manages pipeline state, UI state, and coordinates all interactions.
     Eliminates the need for helper closures by encapsulating state and behavior.
+    
+    IMPORTANT: Each user gets their own controller instance via app.storage.user
+    to prevent state leaking between users.
     """
     
     def __init__(self):
         self.ui_state = SearchPageUIState()
         self.pipeline_state = PipelineState()
+        self.results_state = results_view.ResultsViewState()  # Per-user results cache
         
         # Initialize with default operators
         self.pipeline_state.add_operator(OperatorNames.METADATA_FILTER)
@@ -145,17 +145,13 @@ class SearchPageController:
                 self.ui_state.results_area = ui_module.element('div').props('id=results-area').classes('w-full')
                 
                 # Restore cached results if available
-                cached_results, cached_operator_id = results_view.get_cached_results()
+                cached_results, cached_operator_id = results_view.get_cached_results(self.results_state)
                 if cached_results:
                     logger.info(f"Restoring cached results: {len(cached_results)} results")
                     # Find operator name from id
                     operator = self.pipeline_state.get_operator(cached_operator_id)
                     operator_name = operator['name'] if operator else 'Unknown'
-                    results_view.render_results_ui(cached_results, cached_operator_id, operator_name, self.ui_state.results_area)
-
-
-# Create single controller instance
-controller = SearchPageController()
+                    results_view.render_results_ui(cached_results, cached_operator_id, operator_name, self.ui_state.results_area, self.results_state)
 
 
 # Register page routes
@@ -164,6 +160,16 @@ controller = SearchPageController()
 def page():
     """Search pipeline page - main application page."""
     logger.info("Loading Search page")
+    
+    # Create controller per client session (in-memory, not persisted)
+    # app.storage.client is session-based and doesn't require JSON serialization
+    # This ensures each user/browser tab has their own pipeline state
+    if 'search_controller' not in app.storage.client:
+        logger.info("Creating new SearchPageController for client session")
+        app.storage.client['search_controller'] = SearchPageController()
+    
+    controller = app.storage.client['search_controller']
+    
     render_header()
     controller.render_search(ui)
 

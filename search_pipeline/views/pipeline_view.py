@@ -10,8 +10,7 @@ from loguru import logger
 from config import settings
 from search_pipeline.operator_registry import OperatorRegistry
 from search_pipeline.preview_coordinator import show_preview_for_operator
-from search_pipeline.components.results_view import render_results_ui
-from search_pipeline.components.config_panel import show_operator_config
+from search_pipeline.views.config_panel import show_operator_config
 
 def render_pipeline(controller):
     """
@@ -68,10 +67,7 @@ def render_pipeline(controller):
                             'click', lambda _, op_id=op_id, name=op_name: show_preview_for_operator(
                                 operator_id=op_id,
                                 operator_name=name,
-                                pipeline_state=controller.pipeline_state,
-                                results_area=controller.ui_state.results_area,
-                                render_results_func=render_results_ui,
-                                render_pipeline_func=lambda: render_pipeline(controller)
+                                controller=controller
                             )
                         ).tooltip('Preview Results')
                         

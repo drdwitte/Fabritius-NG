@@ -13,8 +13,7 @@ from loguru import logger
 from search_pipeline.operator_registry import OperatorRegistry
 
 
-def show_preview_for_operator(operator_id: str, operator_name: str, pipeline_state, 
-                              results_area, render_results_func, render_pipeline_func):
+def show_preview_for_operator(operator_id: str, operator_name: str, controller):
     """
     Show results preview for a specific operator using Strategy pattern.
     
@@ -24,16 +23,13 @@ def show_preview_for_operator(operator_id: str, operator_name: str, pipeline_sta
     Args:
         operator_id: ID of the operator to preview
         operator_name: Name of the operator
-        pipeline_state: PipelineState instance
-        results_area: UI container for results
-        render_results_func: Function to render results UI
-        render_pipeline_func: Function to re-render pipeline (to update counts)
+        controller: SearchPageController instance with pipeline_state, ui_state, and results_state
     """
     logger.info(f"Showing preview for operator: {operator_name} (ID: {operator_id})")
     
     # Get operator params from pipeline state
     operator_data = None
-    for op in pipeline_state.get_all_operators():
+    for op in controller.pipeline_state.get_all_operators():
         if op['id'] == operator_id:
             operator_data = op
             break
@@ -46,6 +42,7 @@ def show_preview_for_operator(operator_id: str, operator_name: str, pipeline_sta
     params = operator_data.get('params', {})
     
     # Clear results area immediately
+    results_area = controller.ui_state.results_area
     if not results_area:
         return
     
@@ -80,10 +77,11 @@ def show_preview_for_operator(operator_id: str, operator_name: str, pipeline_sta
             preview_results, total_count = operator.execute(params)
             
             # Update result count in pipeline state
-            pipeline_state.update_result_count(operator_id, total_count)
+            controller.pipeline_state.update_result_count(operator_id, total_count)
             
             # Re-render pipeline to show updated count
-            render_pipeline_func()
+            from search_pipeline.views import pipeline_view
+            pipeline_view.render_pipeline(controller)
             
             # Clear spinner and show results
             results_area.clear()
@@ -94,8 +92,15 @@ def show_preview_for_operator(operator_id: str, operator_name: str, pipeline_sta
                     ui.label('Try adjusting your parameters').classes('text-sm text-gray-500 mt-2')
                 return
             
-            # Render results
-            render_results_func(preview_results, operator_id, operator_name, results_area)
+            # Render results with controller's results_state
+            from search_pipeline.views import results_view
+            results_view.render_results_ui(
+                preview_results, 
+                operator_id, 
+                operator_name, 
+                results_area,
+                controller.results_state
+            )
             
         except Exception as e:
             logger.error(f"Error executing operator {operator_name}: {e}")

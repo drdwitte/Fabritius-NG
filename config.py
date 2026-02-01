@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     host: str = Field(default='127.0.0.1', description='Server host')
     port: int = Field(default=1234, ge=1, le=65535, description='Server port')
     reload: bool = Field(default=True, description='Enable auto-reload on code changes')
+    session_secret: str = Field(
+        default='replace-this-with-a-real-secret-key-in-production',
+        description='Secret key for encrypting user sessions (MUST be set in production!)'
+    )
     
     # Backend settings
     supabase_url: str = Field(default='', description='Supabase project URL')

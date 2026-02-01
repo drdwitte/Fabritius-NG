@@ -23,22 +23,22 @@ class ResultsViewState:
         self.current_view = 'grid'
         self.results_display_container = None
 
-# Create single state instance
-_state = ResultsViewState()
 
-
-def get_cached_results():
+def get_cached_results(results_state: ResultsViewState):
     """Get cached results if available.
+    
+    Args:
+        results_state: Per-user results state instance
     
     Returns:
         tuple: (results, operator_id) or (None, None) if no cache
     """
-    if _state.last_preview_results and _state.last_preview_operator_id:
-        return _state.last_preview_results, _state.last_preview_operator_id
+    if results_state.last_preview_results and results_state.last_preview_operator_id:
+        return results_state.last_preview_results, results_state.last_preview_operator_id
     return None, None
 
 
-def render_results_ui(results, operator_id, operator_name, results_area):
+def render_results_ui(results, operator_id, operator_name, results_area, results_state: ResultsViewState):
     """
     Render results UI with header and grid/list view.
     
@@ -47,12 +47,13 @@ def render_results_ui(results, operator_id, operator_name, results_area):
         operator_id: ID of the operator that generated these results
         operator_name: Name of the operator for display
         results_area: UI container to render results in
+        results_state: Per-user results state instance
     """
     logger.info(f"render_results_ui called with {len(results)} results for {operator_name}")
     
     # Cache results for fast view toggling
-    _state.last_preview_results = results
-    _state.last_preview_operator_id = operator_id
+    results_state.last_preview_results = results
+    results_state.last_preview_operator_id = operator_id
     
     logger.info("Starting UI rendering...")
     
@@ -65,24 +66,24 @@ def render_results_ui(results, operator_id, operator_name, results_area):
             with ui.row().classes('gap-2'):
                 ui.button(
                     icon='grid_view',
-                    on_click=lambda: toggle_view_for_operator('grid', operator_id, operator_name, results_area)
-                ).props(f'flat dense {"color=primary" if _state.current_view == "grid" else "color=grey"}').tooltip('Grid View')
+                    on_click=lambda: toggle_view_for_operator('grid', operator_id, operator_name, results_area, results_state)
+                ).props(f'flat dense {"color=primary" if results_state.current_view == "grid" else "color=grey"}').tooltip('Grid View')
                 
                 ui.button(
                     icon='view_list',
-                    on_click=lambda: toggle_view_for_operator('list', operator_id, operator_name, results_area)
-                ).props(f'flat dense {"color=primary" if _state.current_view == "list" else "color=grey"}').tooltip('List View')
+                    on_click=lambda: toggle_view_for_operator('list', operator_id, operator_name, results_area, results_state)
+                ).props(f'flat dense {"color=primary" if results_state.current_view == "list" else "color=grey"}').tooltip('List View')
         
         logger.info("Header rendered, creating results container...")
         # Results display area - wrap in full width container
-        _state.results_display_container = ui.element('div').classes('w-full')
+        results_state.results_display_container = ui.element('div').classes('w-full')
         
         # Render results
-        with _state.results_display_container:
+        with results_state.results_display_container:
             container = ui.element('div').classes('w-full')
             with container:
-                logger.info(f"Rendering {_state.current_view} view...")
-                if _state.current_view == 'grid':
+                logger.info(f"Rendering {results_state.current_view} view...")
+                if results_state.current_view == 'grid':
                     render_grid_view(results)
                 else:
                     render_list_view(results)
@@ -99,7 +100,7 @@ def render_results_ui(results, operator_id, operator_name, results_area):
     ui.notify(f'Preview for {operator_name}: {len(results)} results', type='positive')
 
 
-def toggle_view_for_operator(view_type: str, operator_id: str, operator_name: str, results_area):
+def toggle_view_for_operator(view_type: str, operator_id: str, operator_name: str, results_area, results_state: ResultsViewState):
     """
     Toggle between grid and list view for a specific operator.
     
@@ -108,22 +109,23 @@ def toggle_view_for_operator(view_type: str, operator_id: str, operator_name: st
         operator_id: ID of the operator
         operator_name: Name of the operator
         results_area: UI container for results
+        results_state: Per-user results state instance
     """
-    _state.current_view = view_type
+    results_state.current_view = view_type
     logger.info(f"Toggled view to: {view_type} for operator: {operator_name}")
     
     # Re-render only the results display container with cached results
-    if _state.results_display_container and _state.last_preview_results:
-        _state.results_display_container.clear()
+    if results_state.results_display_container and results_state.last_preview_results:
+        results_state.results_display_container.clear()
         
         # Use cached results instead of re-executing
-        with _state.results_display_container:
+        with results_state.results_display_container:
             container = ui.element('div').classes('w-full')
             with container:
-                if _state.current_view == 'grid':
-                    render_grid_view(_state.last_preview_results)
+                if results_state.current_view == 'grid':
+                    render_grid_view(results_state.last_preview_results)
                 else:
-                    render_list_view(_state.last_preview_results)
+                    render_list_view(results_state.last_preview_results)
 
 
 def render_grid_view(results):

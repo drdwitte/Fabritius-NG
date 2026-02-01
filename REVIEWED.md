@@ -91,10 +91,10 @@ Visual components for the search pipeline interface.
 
 | File | Status | Notes |
 |------|--------|-------|
-| `search_pipeline/components/config_panel.py` | ⏳ | Operator configuration panel, dynamic form generation |
-| `search_pipeline/components/pipeline_view.py` | ⏳ | Visual operator chain, drag-and-drop |
-| `search_pipeline/components/operator_library.py` | ✅ 2026-01-15 | Sidebar + operator definitions with Builder pattern |
-| `search_pipeline/components/results_view.py` | ⏳ | Results grid rendering |
+| `search_pipeline/views/config_panel.py` | ⏳ | Operator configuration panel, dynamic form generation |
+| `search_pipeline/views/pipeline_view.py` | ⏳ | Visual operator chain, drag-and-drop |
+| `search_pipeline/views/operator_library.py` | ✅ 2026-01-15 | Sidebar + operator definitions with Builder pattern |
+| `search_pipeline/views/results_view.py` | ⏳ | Results grid rendering |
 
 ---
 

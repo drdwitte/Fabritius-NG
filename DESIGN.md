@@ -25,7 +25,7 @@ The Builder Pattern (GoF) separates the construction of a complex object from it
 ### Where we use it
 - **`ui_components/header.py`** - `HeaderBuilder` class
 - **`search_pipeline/operator_builder.py`** - `ParamBuilder` and `OperatorBuilder` classes
-- **`search_pipeline/components/operator_library.py`** - Uses `OperatorBuilder` to define operators
+- **`search_pipeline/views/operator_library.py`** - Uses `OperatorBuilder` to define operators
 
 ### Why we use it
 
