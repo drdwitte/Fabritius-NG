@@ -7,7 +7,24 @@ This module handles the rendering of search results in both grid and list views.
 from nicegui import ui
 from loguru import logger
 from config import settings
-from search_pipeline.ui_helpers import show_artwork_detail
+import routes
+from pages import detail
+
+
+def show_artwork_detail(artwork_data):
+    """
+    Navigate to detail view with artwork data.
+    
+    Args:
+        artwork_data: Dictionary containing artwork information
+    """
+    logger.info(f"Navigating to detail view for artwork: {artwork_data.get('inventory')}")
+    
+    # Store artwork data in detail module's page_state
+    detail.page_state.set_artwork(artwork_data)
+    
+    # Navigate to detail route
+    ui.navigate.to(routes.ROUTE_DETAIL)
 
 
 class ResultsViewState:

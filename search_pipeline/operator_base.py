@@ -7,8 +7,7 @@ allowing new operator types to be added without modifying existing code.
 
 #ABC = Abstract Base Class
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Dict, Any, Optional
-from pydantic import BaseModel, ValidationError
+from typing import Tuple, List, Dict, Any
 from loguru import logger
 
 
@@ -32,7 +31,6 @@ class Operator(ABC):
         self.name = name
         self.icon = icon
         self.description = description
-        self._pydantic_model: Optional[type[BaseModel]] = None
     
     @abstractmethod
     def execute(self, params: Dict[str, Any]) -> Tuple[List[Dict], int]:
@@ -74,37 +72,3 @@ class Operator(ABC):
         """
         return f'Please configure the {self.name} first'
     
-    def set_pydantic_model(self, model: type[BaseModel]):
-        """
-        Set Pydantic model for parameter validation (optional).
-        
-        Args:
-            model: Pydantic BaseModel class for validation
-        """
-        self._pydantic_model = model
-    
-    def validate_params(self, params: Dict[str, Any]) -> Any:
-        """
-        Validate parameters using Pydantic model if available.
-        
-        Args:
-            params: Raw parameter dictionary
-            
-        Returns:
-            Validated Pydantic model instance, or original dict if no model set
-            
-        Raises:
-            ValidationError: If parameters don't match schema
-        """
-        if self._pydantic_model is None:
-            # No validation model set, return params as-is
-            return params
-        
-        try:
-            # Validate and return Pydantic model instance
-            validated = self._pydantic_model(**params)
-            logger.debug(f"Parameters validated successfully for {self.name}")
-            return validated
-        except ValidationError as e:
-            logger.error(f"Parameter validation failed for {self.name}: {e}")
-            raise
