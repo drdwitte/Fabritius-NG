@@ -379,7 +379,7 @@ nano /etc/nginx/sites-available/hensor
 ```nginx
 # Fabritius-NG app on /fabritius/
 location /fabritius/ {
-    proxy_pass http://127.0.0.1:1234/;  # Use your FABRITIUS_PORT
+    proxy_pass http://127.0.0.1:1234;  # NO trailing slash! (preserves /fabritius prefix)
     proxy_http_version 1.1;
 
     # Headers
@@ -494,12 +494,43 @@ server {
     }
 }
 ```
-**⚠️ Path mapping behavior:**
+**⚠️ CRITICAL: Understanding proxy_pass trailing slash**
 
-This config works the same as your `/workbench_sl/` setup:
-- Browser requests: `http://hensor.ilabt.imec.be/fabritius/page`
-- Nginx forwards to: `http://127.0.0.1:1234/page` (strips `/fabritius`)
-- Your app receives: `/page`
+The trailing slash in `proxy_pass` determines how nginx handles URL rewriting:
+
+**Without trailing slash (preserves path prefix):**
+```nginx
+location /fabritius/ {
+    proxy_pass http://127.0.0.1:1234;  # NO trailing slash!
+}
+```
+- Browser request: `/fabritius/search`
+- Forwarded to app: `/fabritius/search` ✅ (prefix preserved)
+- **Use this when:** Your app expects routes WITH the base path (our case!)
+
+**With trailing slash (strips path prefix):**
+```nginx
+location /fabritius/ {
+    proxy_pass http://127.0.0.1:1234/;  # Trailing slash!
+}
+```
+- Browser request: `/fabritius/search`
+- Forwarded to app: `/search` (strips `/fabritius`)
+- **Use this when:** Your app doesn't know about the base path
+
+**For absolute paths (like NiceGUI assets), always use trailing slash:**
+```nginx
+location /_nicegui/ {
+    proxy_pass http://127.0.0.1:1234/_nicegui/;  # Both have trailing slash
+}
+```
+- Browser request: `/_nicegui/static/file.js`
+- Forwarded to app: `/_nicegui/static/file.js` (direct match)
+
+**Summary for Fabritius-NG:**
+- `/fabritius/` → NO trailing slash (app uses FABRITIUS_BASE_PATH)
+- `/_nicegui/` → YES trailing slash (absolute path from NiceGUI)
+- `/_nicegui_ws/` → YES trailing slash (absolute WebSocket endpoint)
 
 **If the app doesn't work after nginx setup, check:**
 1. **Static assets failing?** (CSS/JS not loading)
@@ -539,9 +570,16 @@ git push origin main
 ssh root@hensor.privatedmz
 ```
 
-**3. Pull latest code:**
+**3. Pull latest code (as root - has SSH key):**
 ```bash
+# Navigate to app directory
 cd /opt/Fabritius-NG
+
+# If first time pulling as root, add safe directory exception
+# (only needed once due to ownership by fabritius-ng-user)
+git config --global --add safe.directory /opt/Fabritius-NG
+
+# Pull updates
 git pull origin main
 ```
 
@@ -584,7 +622,11 @@ journalctl -u fabritius-ng -n 30 --no-pager
 
 **Quick update (if only Python code changed, no dependencies):**
 ```bash
-cd /opt/Fabritius-NG && git pull && systemctl restart fabritius-ng && systemctl status fabritius-ng --no-pager
+# SSH as root
+ssh root@hensor.privatedmz
+
+# Pull and restart (root has SSH key)
+cd /opt/Fabritius-NG && git pull origin main && systemctl restart fabritius-ng && systemctl status fabritius-ng --no-pager
 ```
 
 ### Common update scenarios:
