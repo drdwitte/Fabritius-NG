@@ -41,13 +41,6 @@ Operator Execution Flow:
 4. operator.execute() runs the search
 5. Results rendered via results_view.py
 
-Architecture Rules (Prevent Circular Imports):
-- Layer 0: operator_base.py, operators.py (NO search_pipeline imports)
-- Layer 1: operator_implementations.py, operator_registry.py (import Layer 0 only)
-- Layer 2: state.py, preview_coordinator.py (import Layer 0-1)
-- Layer 3: views/ (import Layer 0-2)
-- Rule: operator_base and operators NEVER import from search_pipeline
-- Rule: Always import from lower layers only
 
 Note: Operators are auto-registered when operator_registry.py is imported.
 This happens automatically - no manual registration needed.
