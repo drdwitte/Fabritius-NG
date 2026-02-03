@@ -109,8 +109,7 @@ class LabelPageController:
         logger.info(f"Currently selected algorithms: {self.state.selected_algorithms}")
         ui.notify(f'Selected algorithms: {", ".join(self.state.selected_algorithms) if self.state.selected_algorithms else "None"}')
         
-        # Re-render search bar and columns
-        self.render_search_bar()
+        # Re-render columns
         self.render_columns()
     
     def toggle_level(self, level: str, is_checked: bool):
