@@ -57,11 +57,13 @@ def render_search_input(
             select_input.props('input-debounce=300')
             select_input.props(f'placeholder="{placeholder}"')
         else:
-            # No thesaurus selected - plain text input
-            ui.input(
+            # No thesaurus selected - plain text input with change handler
+            text_input = ui.input(
                 placeholder=placeholder, 
-                value=''
-            ).props('borderless dense').classes('flex-grow')
+                value=label_name or ''
+            ).props('borderless dense outlined').classes('flex-grow')
+            # Update state when user types (debounced)
+            text_input.on('change', lambda e: on_term_select(e.args) if e.args else None)
 
 
 def render_search_bar(

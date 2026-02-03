@@ -23,15 +23,17 @@ def render_result_grid_view(results: List[Dict[str, Any]], is_ai_column: bool = 
             # AI Results: default 3 columns
             grid_cols = 3
         else:
-            # Validated rows: 2 columns
-            grid_cols = 2
+            # Validated rows: 5 columns
+            grid_cols = 5
     
-    with ui.element('div').classes(f'grid grid-cols-{grid_cols} gap-4 w-full'):
+    # Use inline style for grid columns to ensure compatibility
+    with ui.element('div').classes('grid gap-4 w-full').style(f'grid-template-columns: repeat({grid_cols}, minmax(0, 1fr));'):
         for result in results:
             # Gallery tile with image and metadata overlay
-            with ui.card().classes('w-full p-0 overflow-hidden cursor-pointer hover:shadow-xl transition relative').style('aspect-ratio: 1/1;'):
+            # Use fixed min-height to ensure cards render properly
+            with ui.card().classes('w-full p-0 overflow-hidden cursor-pointer hover:shadow-xl transition relative').style('aspect-ratio: 1/1; min-height: 200px;'):
                 # Image (full card background)
-                img = ui.image(result.get('image_url', '')).classes('w-full h-full object-cover absolute inset-0')
+                ui.image(result.get('image_url', '')).classes('w-full h-full object-cover absolute inset-0').style('min-height: 200px;')
                 
                 # Metadata overlay (bottom of card, semi-transparent dark background)
                 with ui.element('div').classes('absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-2'):

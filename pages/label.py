@@ -35,7 +35,9 @@ from label_tool.views import (
     render_level_column,
     render_result_grid_view,
     render_result_list_view,
-    render_view_toggle
+    render_view_toggle,
+    render_column_header,
+    render_algorithm_header
 )
 
 
@@ -343,8 +345,9 @@ class LabelPageController:
         self.ui_state.columns_area.clear()
         
         with self.ui_state.columns_area:
-            # Layer 1: AI Results (always show both boxes, even if closed)
-            self.render_ai_results_row()
+            # Layer 1: AI Results (collapsible row with colored header)
+            if self.state.selected_algorithms:
+                self.render_ai_results_row()
             
             # Layer 2-4: Validated rows (only show selected levels)
             if VALIDATION_LEVEL_AI in self.state.selected_levels:
@@ -355,85 +358,79 @@ class LabelPageController:
                 self.render_validated_row(VALIDATION_LEVEL_EXPERT, "Level: Expert", "Label was validated by expert (art historian)", "amber-700")
     
     def render_ai_results_row(self):
-        """Render the AI results row with same layout as validated rows."""
-        with ui.card().classes('w-full p-4 mb-4'):
-            # Header with subtitle
-            with ui.row().classes('w-full items-center justify-between mb-4'):
-                with ui.column().classes('gap-0'):
-                    ui.label('AI Results').classes('text-xl font-bold')
-                    ui.label('Labels suggested by AI to be validated').classes('text-sm text-gray-600 italic')
-            
-            # Show boxes for selected algorithms, or placeholder if none selected
-            with ui.row().classes('w-full gap-4'):
-                if not self.state.selected_algorithms:
-                    # Show white box with "no results" when no algorithms selected
-                    from label_tool.state import ColumnResults
-                    empty_results = ColumnResults(column_key="", column_label="")
-                    self.render_result_box(
-                        box_key="",
-                        label="",
-                        color="gray-600",
-                        results=empty_results,
-                        show_label=False
-                    )
-                else:
-                    # Show boxes for selected algorithms (can be 1 or 2 boxes side by side)
-                    for algo_name in self.state.selected_algorithms:
-                        box_key = f"AI-{algo_name}"
-                        is_open = self.state.is_box_open(box_key)
-                        
-                        if is_open:
-                            # Render full column with results
-                            column_results = self.state.get_column_results(box_key)
-                            self.render_result_box(
-                                box_key=box_key,
-                                label=f"{algo_name} Embeddings",
-                                color="purple-600",
-                                results=column_results,
-                                show_label=True
-                            )
-                        else:
-                            # Render closed placeholder
-                            self.render_closed_box(
-                                box_key=box_key,
-                                label=f"{algo_name} Embeddings",
-                                color="gray-300"
-                            )
+        """Render AI Results as a collapsible row like validated rows."""
+        box_key = "AI_RESULTS"
+        is_collapsed = not self.state.is_box_open(box_key)
+        
+        # Calculate total results across all algorithms
+        total_results = 0
+        for algo_name in self.state.selected_algorithms:
+            algo_box_key = f"AI-{algo_name}"
+            column_results = self.state.get_column_results(algo_box_key)
+            if column_results:
+                total_results += column_results.total_count
+        
+        # Create a dummy ColumnResults for the header
+        from label_tool.state import ColumnResults
+        ai_results = ColumnResults(column_key=box_key, column_label="AI Results")
+        ai_results.total_count = total_results
+        
+        with ui.element('div').classes('w-full mb-4'):
+            # Main header with collapse
+            with ui.column().classes('w-full bg-white rounded-lg shadow-md overflow-hidden'):
+                # AI Results header (gray-600 color)
+                result_count = total_results
+                render_column_header(
+                    title="AI Results",
+                    count=result_count,
+                    is_collapsed=is_collapsed,
+                    on_toggle_collapse=lambda: self.toggle_box(box_key),
+                    color="gray-600",
+                    subtitle="Labels suggested by AI to be validated"
+                )
+                
+                # Collapsible content area
+                content_height = '0px' if is_collapsed else 'none'
+                overflow_class = 'overflow-hidden' if is_collapsed else ''
+                with ui.column().classes(f'{overflow_class} transition-all duration-500 ease-in-out').style(f'max-height: {content_height};' if is_collapsed else ''):
+                    with ui.column().classes('p-4'):
+                        # Algorithm columns in a row
+                        with ui.row().classes('w-full gap-4'):
+                            for i, algo_name in enumerate(self.state.selected_algorithms):
+                                algo_box_key = f"AI-{algo_name}"
+                                algo_color = "rose-600" if i == 0 else "emerald-600"
+                                
+                                # Render algorithm box with close button
+                                column_results = self.state.get_column_results(algo_box_key)
+                                self.render_algorithm_box(
+                                    box_key=algo_box_key,
+                                    label=f"{algo_name} Embeddings",
+                                    color=algo_color,
+                                    results=column_results,
+                                    on_close=lambda a=algo_name: self.close_algorithm(a)
+                                )
     
     def render_validated_row(self, box_key: str, row_label: str, subtitle: str, color: str):
         """Render a validated data row."""
-        is_open = self.state.is_box_open(box_key)
-        
-        with ui.card().classes('w-full p-4 mb-4'):
-            # Header with subtitle
-            with ui.row().classes('w-full items-center justify-between mb-4'):
-                with ui.column().classes('gap-0'):
-                    ui.label(row_label).classes('text-xl font-bold')
-                    ui.label(subtitle).classes('text-sm text-gray-600 italic')
-            
-            with ui.row().classes('w-full gap-4'):
-                if is_open:
-                    # Render full column with results
-                    column_results = self.state.get_column_results(box_key)
-                    self.render_result_box(
-                        box_key=box_key,
-                        label=row_label,
-                        color=color,
-                        results=column_results,
-                        show_label=False
-                    )
-                else:
-                    # Render closed placeholder
-                    self.render_closed_box(
-                        box_key=box_key,
-                        label=row_label,
-                        color="gray-300"
-                    )
+        # Always render result box (header stays visible when collapsed)
+        column_results = self.state.get_column_results(box_key)
+        with ui.element('div').classes('w-full mb-4'):
+            self.render_result_box(
+                box_key=box_key,
+                label=row_label,
+                color=color,
+                results=column_results,
+                show_label=False,
+                subtitle=subtitle
+            )
     
-    def render_result_box(self, box_key: str, label: str, color: str, results, show_label: bool = False):
-        """Render an open result box with close button and view toggle."""
+    def render_result_box(self, box_key: str, label: str, color: str, results, show_label: bool = False, subtitle: str = None):
+        """Render an open result box with column header and results."""
         is_ai_column = box_key.startswith("AI-") and box_key not in [VALIDATION_LEVEL_AI, VALIDATION_LEVEL_HUMAN, VALIDATION_LEVEL_EXPERT]
         is_validated_column = box_key in [VALIDATION_LEVEL_AI, VALIDATION_LEVEL_HUMAN, VALIDATION_LEVEL_EXPERT]
+        
+        # Check if column is collapsed
+        is_collapsed = not self.state.is_box_open(box_key)
         
         # Determine grid columns and max items based on row type
         grid_cols = None
@@ -455,52 +452,137 @@ class LabelPageController:
             grid_cols = 5
             max_items = 10
         
-        with ui.column().classes('flex-1 bg-white rounded-lg shadow-md p-4 relative'):
-            # Header row with close button and view toggle
-            with ui.row().classes('w-full items-center justify-between mb-4'):
-                # Only show label if show_label=True (for AI columns)
-                if show_label:
-                    ui.label(label).classes('text-lg font-bold')
-                else:
-                    ui.element('div')  # Empty spacer
+        # Determine header color based on column type
+        if is_ai_column:
+            # For AI algorithm columns, use different colors for each algorithm
+            if self.state.selected_algorithms:
+                algo_index = None
+                for i, algo in enumerate(self.state.selected_algorithms):
+                    if box_key == f"AI-{algo}":
+                        algo_index = i
+                        break
                 
-                # View toggle and close button
-                with ui.row().classes('gap-2 items-center'):
-                    # View toggle buttons
+                if algo_index == 0:
+                    header_color = "rose-600"     # Rose for first algorithm
+                elif algo_index == 1:
+                    header_color = "emerald-600"  # Emerald for second algorithm
+                else:
+                    header_color = "purple-700"   # Fallback purple
+            else:
+                header_color = "purple-700"       # Default purple if no algorithms
+        elif box_key == VALIDATION_LEVEL_AI:
+            header_color = "purple-600"  # Purple for AI validated
+        elif box_key == VALIDATION_LEVEL_HUMAN:
+            header_color = "blue-600"    # Blue for Human
+        elif box_key == VALIDATION_LEVEL_EXPERT:
+            header_color = "amber-700"   # Amber for Expert (Fabritius branding)
+        elif box_key == "":
+            header_color = "gray-400"    # Light gray for empty AI Results (no algorithm selected)
+        else:
+            header_color = "amber-800"   # Default Fabritius brown
+        
+        with ui.column().classes('flex-1 bg-white rounded-lg shadow-md overflow-hidden'):
+            # Column header with title, count badge, and collapse button
+            result_count = results.total_count if results else 0
+            render_column_header(
+                title=label,
+                count=result_count,
+                is_collapsed=is_collapsed,
+                on_toggle_collapse=lambda: self.toggle_box(box_key),
+                color=header_color,
+                subtitle=subtitle  # Pass subtitle to header
+            )
+            
+            # Content area with smooth collapse animation
+            # Use a large max-height for smooth transition (2000px should accommodate most content)
+            content_height = '0px' if is_collapsed else 'none'
+            overflow_class = 'overflow-hidden' if is_collapsed else ''
+            with ui.column().classes(f'{overflow_class} transition-all duration-500 ease-in-out').style(f'max-height: {content_height};' if is_collapsed else ''):
+                with ui.column().classes('p-4'):
+                    # View toggle in top right
+                    with ui.row().classes('w-full items-center justify-end mb-4'):
+                        render_view_toggle(
+                            current_view=self.state.view_mode,
+                            on_toggle_view=self.toggle_view
+                        )
+                    
+                    # Results area
+                    if results and results.results:
+                        # Limit results based on max_items
+                        display_results = results.results[:max_items] if max_items else results.results
+                        
+                        logger.info(f"Rendering {len(display_results)} results for {box_key}, view mode: {self.state.view_mode}")
+                        
+                        if self.state.view_mode == 'grid':
+                            render_result_grid_view(display_results, is_ai_column=is_ai_column, grid_cols=grid_cols)
+                        else:
+                            render_result_list_view(display_results, is_ai_column=is_ai_column)
+                    else:
+                        logger.warning(f"No results to display for {box_key}: results={results}, has results={results.results if results else 'None'}")
+                        ui.label('No results').classes('text-gray-500 italic')
+    
+    def render_algorithm_box(self, box_key: str, label: str, color: str, results, on_close):
+        """Render an algorithm box with close button instead of collapse."""
+        is_ai_column = True
+        
+        # Determine grid columns and max items for AI columns
+        num_algorithms = len(self.state.selected_algorithms) if self.state.selected_algorithms else 1
+        if num_algorithms == 1:
+            grid_cols = 5
+            max_items = 10
+        else:
+            grid_cols = 3
+            max_items = 6
+        
+        # Use flex-1 for single algorithm (takes full width), flex-1 for 2 algorithms (50% each)
+        if num_algorithms == 1:
+            width_class = 'flex-1'
+        else:
+            width_class = 'flex-1'  # Each takes 50% of available space with gap-4
+        
+        with ui.column().classes(f'{width_class} bg-white rounded-lg shadow-md overflow-hidden'):
+            # Algorithm header with close button (X)
+            result_count = results.total_count if results else 0
+            render_algorithm_header(
+                title=label,
+                count=result_count,
+                on_close=on_close,
+                color=color
+            )
+            
+            # Content always visible (no collapse for algorithms)
+            with ui.column().classes('p-4'):
+                # View toggle in top right
+                with ui.row().classes('w-full items-center justify-end mb-4'):
                     render_view_toggle(
                         current_view=self.state.view_mode,
                         on_toggle_view=self.toggle_view
                     )
-                    
-                    # Close button
-                    ui.button(
-                        icon='close',
-                        on_click=lambda: self.toggle_box(box_key)
-                    ).props('flat round size=sm')
-            
-            # Results area
-            if results and results.results:
-                # Limit results based on max_items
-                display_results = results.results[:max_items] if max_items else results.results
                 
-                if self.state.view_mode == 'grid':
-                    render_result_grid_view(display_results, is_ai_column=is_ai_column, grid_cols=grid_cols)
+                # Results area
+                if results and results.results:
+                    # Limit results based on max_items
+                    display_results = results.results[:max_items] if max_items else results.results
+                    
+                    logger.info(f"Rendering {len(display_results)} algo results for {box_key}, view mode: {self.state.view_mode}")
+                    
+                    if self.state.view_mode == 'grid':
+                        render_result_grid_view(display_results, is_ai_column=is_ai_column, grid_cols=grid_cols)
+                    else:
+                        render_result_list_view(display_results, is_ai_column=is_ai_column)
                 else:
-                    render_result_list_view(display_results, is_ai_column=is_ai_column)
-            else:
-                ui.label('No results').classes('text-gray-500 italic')
+                    logger.warning(f"No algo results for {box_key}")
+                    ui.label('No results').classes('text-gray-500 italic')
     
-    def render_closed_box(self, box_key: str, label: str, color: str, clickable: bool = True):
-        """Render a closed placeholder box with optional open button."""
-        with ui.column().classes(f'flex-1 bg-{color} bg-opacity-10 rounded-lg border-2 border-dashed border-{color} p-4 min-h-32 items-center justify-center'):
-            ui.icon('add_box').classes(f'text-{color} text-4xl mb-2')
-            ui.label(label).classes(f'text-{color} font-bold')
-            if clickable:
-                ui.button(
-                    'Open',
-                    icon='visibility',
-                    on_click=lambda: self.toggle_box(box_key)
-                ).classes('mt-2').props('outline')
+    def close_algorithm(self, algo_name: str):
+        """Close (remove) an algorithm from the selected list."""
+        if algo_name in self.state.selected_algorithms:
+            self.state.selected_algorithms.remove(algo_name)
+            logger.info(f"Closed algorithm: {algo_name}")
+            
+            # Re-render search bar to update checkboxes and columns
+            self.render_search_bar()
+            self.render_columns()
     
     def toggle_box(self, box_key: str):
         """Toggle a box open/closed and sync with algorithms."""
