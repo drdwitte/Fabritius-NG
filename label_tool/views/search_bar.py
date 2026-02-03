@@ -17,14 +17,20 @@ from label_tool.level_config import get_enabled_levels
 
 def render_search_input(
     label_name: str,
-    on_clear: Callable
+    thesaurus_terms: list,
+    thesaurus_name: str,
+    on_clear: Callable,
+    on_term_select: Callable
 ) -> None:
     """
     Render the search input or label tag.
     
     Args:
         label_name: Current label name (None if no label selected)
+        thesaurus_terms: List of terms for autocomplete
+        thesaurus_name: Name of selected thesaurus (None for free search)
         on_clear: Callback when label is cleared
+        on_term_select: Callback when a term is selected from autocomplete
     """
     if label_name:
         # Show label tag with Fabritius colors (brown background, white text)
@@ -33,11 +39,29 @@ def render_search_input(
             ui.label(label_name).classes('font-semibold')
             ui.button(icon='close', on_click=on_clear).props('flat dense round size=sm').classes('text-white')
     else:
-        # Show input field when no label is selected
-        ui.input(
-            placeholder='Type to experiment, or choose thesaurus label →', 
-            value=''
-        ).props('borderless dense').classes('flex-grow')
+        # Determine placeholder based on thesaurus selection
+        if thesaurus_name:
+            placeholder = f'Select term from {thesaurus_name}'
+        else:
+            placeholder = 'Type to experiment, or choose thesaurus label →'
+        
+        # Show autocomplete input field when no label is selected
+        if thesaurus_terms:
+            # With autocomplete from selected thesaurus
+            select_input = ui.select(
+                options=thesaurus_terms,
+                with_input=True,
+                value=None,
+                on_change=lambda e: on_term_select(e.value) if e.value else None
+            ).props('borderless dense use-input outlined').classes('flex-grow')
+            select_input.props('input-debounce=300')
+            select_input.props(f'placeholder="{placeholder}"')
+        else:
+            # No thesaurus selected - plain text input
+            ui.input(
+                placeholder=placeholder, 
+                value=''
+            ).props('borderless dense').classes('flex-grow')
 
 
 def render_search_bar(
@@ -45,12 +69,14 @@ def render_search_bar(
     selected_algorithms: list,
     selected_levels: list,
     label_name: str,
+    thesaurus_terms: list,
     on_thesaurus_change: Callable,
     on_new_label_click: Callable,
     on_algorithm_toggle: Callable,
     on_level_toggle: Callable,
     on_search_click: Callable,
-    on_clear_label: Callable
+    on_clear_label: Callable,
+    on_term_select: Callable
 ) -> None:
     """
     Render the search bar with thesaurus selector and controls.
@@ -60,18 +86,20 @@ def render_search_bar(
         selected_algorithms: List of selected algorithm names
         selected_levels: List of selected validation level names
         label_name: Current label name (None if no label)
+        thesaurus_terms: List of terms for autocomplete
         on_thesaurus_change: Callback when thesaurus is changed
         on_new_label_click: Callback when New Label button is clicked
         on_algorithm_toggle: Callback when algorithm is toggled
         on_level_toggle: Callback when validation level is toggled
         on_search_click: Callback when Search button is clicked
         on_clear_label: Callback when label is cleared
+        on_term_select: Callback when a term is selected from autocomplete
     """
     # Top bar: full width, left input, right buttons
     with ui.row().props('flat').classes('w-full flex items-center justify-between'):
         # Left: search container with tag or input
         with ui.element('div').classes('flex-grow flex items-center gap-2 min-h-9'):
-            render_search_input(label_name, on_clear_label)
+            render_search_input(label_name, thesaurus_terms, selected_thesaurus, on_clear_label, on_term_select)
         
         # Right: action buttons
         with ui.row().classes('gap-2'):

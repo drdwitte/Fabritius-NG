@@ -36,10 +36,13 @@ class LabelState:
     """State for the label validation page."""
     
     # Selected thesaurus and label
-    selected_thesaurus: str = "Garnier"      # Current thesaurus
+    selected_thesaurus: Optional[str] = None  # Current thesaurus (None = free search)
     label_name: Optional[str] = None         # Current label being validated
     label_definition: Optional[str] = None   # Label definition (if available)
     label_id: Optional[str] = None           # Label ID in thesaurus system
+    
+    # Cached thesaurus terms for autocomplete
+    cached_thesaurus_terms: List[str] = field(default_factory=list)  # Terms from selected thesaurus
     
     # Selected validation algorithms (for AI columns)
     selected_algorithms: List[str] = field(default_factory=list)

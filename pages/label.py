@@ -29,6 +29,7 @@ from label_tool import (
     VALIDATION_LEVEL_HUMAN,
     VALIDATION_LEVEL_EXPERT
 )
+from label_tool.thesaurus_terms import get_thesaurus_terms
 from label_tool.views import (
     render_search_bar, 
     render_level_column,
@@ -60,6 +61,9 @@ class LabelPageController:
         self.state = LabelState()
         self.validation_engine = ValidationEngine()
         
+        # Load initial thesaurus terms
+        self._load_thesaurus_terms()
+        
         logger.info("LabelPageController initialized")
     
     # ========== Thesaurus Actions ==========
@@ -74,12 +78,38 @@ class LabelPageController:
             self.state.clear_label()
         
         self.state.selected_thesaurus = thesaurus
+        
+        # Load thesaurus terms for autocomplete
+        self._load_thesaurus_terms()
+        
         ui.notify(f'Selected thesaurus: {thesaurus}')
         
         # Re-render UI
         self.render_search_bar()
         self.render_definition()
         self.render_columns()
+    
+    def _load_thesaurus_terms(self):
+        """Load terms from selected thesaurus for autocomplete."""
+        if self.state.selected_thesaurus:
+            # Convert thesaurus name to ID (lowercase)
+            thesaurus_id = self.state.selected_thesaurus.lower()
+            self.state.cached_thesaurus_terms = get_thesaurus_terms(thesaurus_id)
+            logger.info(f"Loaded {len(self.state.cached_thesaurus_terms)} terms from {self.state.selected_thesaurus}")
+        else:
+            self.state.cached_thesaurus_terms = []
+    
+    def select_term(self, term: str):
+        """Handle term selection from autocomplete."""
+        if term:
+            logger.info(f"Term selected from autocomplete: {term}")
+            self.state.label_name = term
+            ui.notify(f'Selected label: {term}', type='positive')
+            
+            # Re-render UI
+            self.render_search_bar()
+            self.render_definition()
+            self.render_columns()
     
     # ========== Algorithm Actions ==========
     
@@ -279,12 +309,14 @@ class LabelPageController:
                 selected_algorithms=self.state.selected_algorithms,
                 selected_levels=self.state.selected_levels,
                 label_name=self.state.label_name,
+                thesaurus_terms=self.state.cached_thesaurus_terms,
                 on_thesaurus_change=self.select_thesaurus,
                 on_new_label_click=self.open_new_label_dialog,
                 on_algorithm_toggle=self.toggle_algorithm,
                 on_level_toggle=self.toggle_level,
                 on_search_click=self.execute_search,
-                on_clear_label=self.clear_label
+                on_clear_label=self.clear_label,
+                on_term_select=self.select_term
             )
     
     def render_definition(self):
