@@ -8,12 +8,12 @@ from nicegui import ui
 from typing import List, Dict, Any, Optional
 
 from label_tool.level_config import ValidationLevel
-from label_tool.state import ColumnResults
+from label_tool.state import ValidationResults
 
 
 def render_level_column(
     level: Optional[ValidationLevel],
-    results: ColumnResults,
+    results: ValidationResults,
     column_label: str = None
 ) -> None:
     """

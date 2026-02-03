@@ -17,7 +17,10 @@ def render_column_header(
     is_collapsed: bool,
     on_toggle_collapse: Callable,
     color: str = "amber-800",
-    subtitle: str = None
+    subtitle: str = None,
+    has_selection: bool = False,
+    on_select_all: Callable = None,
+    on_deselect_all: Callable = None
 ) -> None:
     """
     Render a column header with title, badge, and collapse button.
@@ -29,6 +32,9 @@ def render_column_header(
         on_toggle_collapse: Callback when collapse button is clicked
         color: Tailwind color class for header background (default: amber-800 for Fabritius branding)
         subtitle: Optional subtitle text to display below title in smaller italic text
+        has_selection: Whether any items are selected in this column
+        on_select_all: Callback to select all items in column
+        on_deselect_all: Callback to deselect all items in column
     """
     # Header bar with Fabritius brown/amber styling
     with ui.row().classes(f'w-full bg-{color} text-white px-4 py-3 rounded-t-lg items-center justify-between'):
@@ -40,8 +46,20 @@ def render_column_header(
             if subtitle:
                 ui.label(subtitle).classes('text-xs italic opacity-90 mt-0.5')
         
-        # Right side: Badge and collapse/expand button
+        # Right side: Badge, selection buttons, and collapse/expand button
         with ui.row().classes('items-center gap-3 flex-shrink-0'):
+            # Select all / Deselect all buttons (only if callbacks provided)
+            if on_select_all and on_deselect_all:
+                ui.button(
+                    icon='check_box',
+                    on_click=on_select_all
+                ).props('flat dense').classes('text-white').tooltip('Select all')
+                
+                ui.button(
+                    icon='check_box_outline_blank',
+                    on_click=on_deselect_all
+                ).props('flat dense').classes('text-white').tooltip('Deselect all')
+            
             # Result count badge (white background for contrast)
             if count > 0:
                 artwork_text = 'artwork' if count == 1 else 'artworks'

@@ -5,10 +5,17 @@ Renders artworks in gallery or list view format.
 """
 
 from nicegui import ui
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable, Optional
 
 
-def render_result_grid_view(results: List[Dict[str, Any]], is_ai_column: bool = False, grid_cols: int = None):
+def render_result_grid_view(
+    results: List[Dict[str, Any]], 
+    is_ai_column: bool = False, 
+    grid_cols: int = None,
+    column_key: str = None,
+    selected_ids: set = None,
+    on_toggle_selection: Optional[Callable] = None
+):
     """
     Render results in gallery grid view.
     
@@ -16,24 +23,34 @@ def render_result_grid_view(results: List[Dict[str, Any]], is_ai_column: bool = 
         results: List of artwork results
         is_ai_column: Whether this is an AI algorithm column (shows confidence scores)
         grid_cols: Number of columns in grid (if None, auto-determine based on column type)
+        column_key: Column identifier for selection tracking
+        selected_ids: Set of selected artwork IDs
+        on_toggle_selection: Callback for toggling artwork selection
     """
     # Determine grid layout
     if grid_cols is None:
         if is_ai_column:
-            # AI Results: default 3 columns
-            grid_cols = 3
+            grid_cols = 3  # Smaller grid for AI columns (3 per row)
         else:
-            # Validated rows: 5 columns
-            grid_cols = 5
+            grid_cols = 5  # Larger grid for validated columns (5 per row)
     
     # Use inline style for grid columns to ensure compatibility
     with ui.element('div').classes('grid gap-4 w-full').style(f'grid-template-columns: repeat({grid_cols}, minmax(0, 1fr));'):
         for result in results:
+            artwork_id = result.get('id', result.get('inventory_number'))
+            is_selected = selected_ids and artwork_id in selected_ids if selected_ids else False
+            
             # Gallery tile with image and metadata overlay
             # Use fixed min-height to ensure cards render properly
-            with ui.card().classes('w-full p-0 overflow-hidden cursor-pointer hover:shadow-xl transition relative').style('aspect-ratio: 1/1; min-height: 200px;'):
+            border_class = 'ring-4 ring-blue-500' if is_selected else ''
+            with ui.card().classes(f'w-full p-0 overflow-hidden cursor-pointer hover:shadow-xl transition relative {border_class}').style('aspect-ratio: 1/1; min-height: 200px;'):
                 # Image (full card background)
                 ui.image(result.get('image_url', '')).classes('w-full h-full object-cover absolute inset-0').style('min-height: 200px;')
+                
+                # Selection checkbox (top-left)
+                if on_toggle_selection and artwork_id:
+                    with ui.element('div').classes('absolute top-2 left-2 z-10'):
+                        ui.checkbox(value=is_selected, on_change=lambda e, aid=artwork_id: on_toggle_selection(aid)).classes('bg-white rounded shadow-lg').props('size=lg')
                 
                 # Metadata overlay (bottom of card, semi-transparent dark background)
                 with ui.element('div').classes('absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-2'):
@@ -54,19 +71,36 @@ def render_result_grid_view(results: List[Dict[str, Any]], is_ai_column: bool = 
                         ui.label(f'{confidence_pct}% confidence').classes('text-xs text-green-400 mt-1')
 
 
-def render_result_list_view(results: List[Dict[str, Any]], is_ai_column: bool = False):
+def render_result_list_view(
+    results: List[Dict[str, Any]], 
+    is_ai_column: bool = False,
+    column_key: str = None,
+    selected_ids: set = None,
+    on_toggle_selection: Optional[Callable] = None
+):
     """
     Render results in list view format.
     
     Args:
         results: List of artwork results
         is_ai_column: Whether this is an AI algorithm column (shows confidence scores)
+        column_key: Column identifier for selection tracking
+        selected_ids: Set of selected artwork IDs
+        on_toggle_selection: Callback for toggling artwork selection
     """
     with ui.column().classes('w-full gap-3'):
         for result in results:
+            artwork_id = result.get('id', result.get('inventory_number'))
+            is_selected = selected_ids and artwork_id in selected_ids if selected_ids else False
+            
             # List item card with thumbnail and metadata side by side
-            with ui.card().classes('w-full hover:shadow-lg transition cursor-pointer'):
+            border_class = 'ring-2 ring-blue-500' if is_selected else ''
+            with ui.card().classes(f'w-full hover:shadow-lg transition cursor-pointer {border_class}'):
                 with ui.row().classes('w-full items-center gap-4 p-2'):
+                    # Selection checkbox
+                    if on_toggle_selection and artwork_id:
+                        ui.checkbox(value=is_selected, on_change=lambda e, aid=artwork_id: on_toggle_selection(aid)).classes('flex-shrink-0').props('size=md')
+                    
                     # Square thumbnail (fixed size)
                     ui.image(result.get('image_url', '')).classes('w-24 h-24 object-cover rounded')
                     

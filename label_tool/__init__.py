@@ -1,126 +1,148 @@
 """
 Label tool package for the Fabritius-NG application.
 
-ARCHITECTURE
-============
-This package handles all label validation logic, following the same architecture
-pattern as the search_pipeline package. It provides a complete multi-level 
-validation system with support for EXPERT, HUMAN, and AI validation levels.
+ARCHITECTURE: Page Controller Pattern
+======================================
 
-PACKAGE STRUCTURE
-=================
-- state.py: LabelState and LevelResults classes for state management
-- level_config.py: ValidationLevel definitions (EXPERT, HUMAN, AI)
-- thesaurus_registry.py: Available thesauri (Garnier, AAT, Iconclass, Fabritius)
-- algorithm_registry.py: Validation algorithms (Semantic Search, CLIP, BLIP)
-- label_service.py: API interface for thesaurus CRUD operations
-- validation_engine.py: Core validation logic
-- views/: Reusable view components (search_bar, label_card, level_column)
+This package follows the Page Controller Pattern:
 
-CORE COMPONENTS
-===============
+- Page Controller Pattern: LabelPageController orchestrates all interactions for the label page.
+  It manages three types of state:
+  - Model: label_state (validation levels & results) + selection_state (bulk actions)
+  - View References: ui_state (handles to UI containers, not the view itself)
+  - View: views/*.py (actual UI rendering: result_cards, column_header, action_bar)
 
-State Management (state.py):
-----------------------------
-- LabelState: Main state container with selected thesaurus, label, algorithms,
-  and results_per_level dictionary
-- LevelResults: Results for a single validation level (EXPERT/HUMAN/AI) with
-  artwork results, loading state, and error handling
+The controller manipulates the state (LabelState) which tracks artworks across multiple 
+validation levels (AI, HUMAN, EXPERT). Artworks flow between levels via promote/demote operations.
 
-Level Configuration (level_config.py):
---------------------------------------
-- ValidationLevel: Level properties (name, display_name, color, enabled, order)
-- DEFAULT_LEVELS: Pre-configured EXPERT (amber), HUMAN (blue), AI (green) levels
-- get_enabled_levels(): Returns active levels in display order
 
-Registries:
------------
-- ThesaurusInfo: Thesaurus metadata with CRUD support flags
-  * Garnier: Full CRUD support
-  * AAT: Read-only (Getty)
-  * Iconclass: Read-only
-  * Fabritius: Full CRUD support
+PACKAGE: Label Validation
+==========================
 
-- AlgorithmInfo: Validation algorithm metadata with model requirements
-  * Semantic Search: Text-based similarity
-  * CLIP: Vision-language model
-  * BLIP: Image-text pre-training
+This package provides multi-row label validation with AI algorithms and human oversight.
 
-Services:
----------
-- LabelService: API interface for thesaurus operations
-  * search_labels(query): Search in thesaurus
-  * get_label(label_id): Fetch specific label
-  * create_label(name, definition): Create new label
-  * update_label(), delete_label(): Modify labels
+Key Components:
+- state.py: LabelState, ValidationResults - manages validation state & results
+  - LabelState: Tracks selected label, thesaurus, levels, results per row, selections
+  - ValidationResults: Holds results for each validation row (AI algorithms + levels)
 
-- ValidationEngine: Core validation logic
-  * validate_label(): Run validation across all enabled levels
-  * Returns LevelResults per level with ranked artwork matches
+- level_config.py: ValidationLevel definitions (AI, HUMAN, EXPERT)
+- algorithm_registry.py: Available algorithms (Text/Image Embeddings) + auto-registration (registry pattern)
+- validation_engine.py: Query engine with core validation logic & artwork ranking (currently stub with mock data)
+- label_service.py: Thesaurus CRUD operations
+- views/: UI view layer (result_cards, column_header, action_bar, search_bar)
 
-USAGE EXAMPLE
+Entry Point:
+- pages/label.py: Creates LabelPageController per client session
+- Controller manages: label_state, ui_state, selection_state
+- Algorithms are auto-registered when algorithm_registry.py is imported
+
+User Flows:
+===========
+
+Flow 1: Search with Thesaurus Label
+------------------------------------
+1. User selects thesaurus from dropdown (e.g., "Iconclass", "AAT")
+2. Searches for label in thesaurus via search_bar.py
+3. Selects label from thesaurus results
+4. If label is not found in Fabritius give the option to create it in Fabritius thesaurus
+4. Selects AI algorithms (Text/Image Embeddings)
+5. Clicks search → validation_engine.validate_label()
+6. Results appear in AI Results row (one column per algorithm)
+7. User validates results → promotes to HUMAN → EXPERT levels
+
+Flow 2: Search with Free-Text Label (Non-Existing)
+---------------------------------------------------
+1. User types arbitrary text in search_bar.py (e.g., "blue sky")
+2. Label not found in any thesaurus
+3. System offers option: "Create new label in Fabritius?"
+4. If yes → label created in Fabritius thesaurus
+5. Proceeds with validation flow (select algorithms → search → validate)
+6. If no → user can refine search or select different thesaurus
+
+Flow 3: Search with Existing Fabritius Label
+---------------------------------------------
+1. User selects "Fabritius" thesaurus
+2. Searches for label (e.g., "portrait", "landscape")
+3. Selects existing Fabritius label
+4. Option available: "Delete label" (removes from Fabritius thesaurus)
+5. If not deleted → proceeds with validation flow
+6. Results shown in AI Results → HUMAN → EXPERT levels
+
+Flow 4: Create Custom Label with Definition
+--------------------------------------------
+1. User creates new label with custom definition
+2. Types label name + definition text in search_bar.py
+3. Optional: Enrich definition with external data sources:
+   - Search Wikidata for related concepts
+   - Import descriptions, synonyms, related terms
+   - Add contextual information to build better search query
+4. System constructs enhanced search query from label + definition + external data
+5. Label saved to Fabritius thesaurus with enriched metadata
+6. Proceeds with validation flow (select algorithms → search → validate)
+7. AI algorithms use enriched query for better artwork matching
+
+Flow 5: Validation & Promotion
+-------------------------------
+1. After search, results populate AI Results row (per algorithm column)
+2. User reviews artworks in grid/list view
+3. Selects artworks via checkboxes (individual or "Select All")
+4. Action bar appears with bulk actions:
+   - Promote ⬇️: Move selected to next level (AI Results → HUMAN → EXPERT)
+   - Demote ⬆️: Move back to previous level
+   - Delete 🗑️: Remove label assignments from backend
+   - Hide 👁️: Hide artworks, show next results
+5. Results re-rendered via result_cards.py
+6. Process repeats until expert validation complete
+
+Provenance Levels:
+==================
+Labels can be validated in three provenance levels: AI, HUMAN, and EXPERT.
+On top we can run multiple AI algorithms (e.g. Text Embeddings, Image Embeddings) in parallel, 
+which populate the AI Results row. 
+
+Users can then promote results from these AI Algorithm columns to the AI row, and from there to HUMAN and EXPERT, 
+or demote them back down. Bulk actions (select, promote, demote, delete, hide) are supported 
+to speed up the human validation process.
+
+
+UI Layout:
+==========
+
+1. AI Results Row (collapsible, gray-600 header):
+   - Contains multiple algorithm columns side-by-side
+   - Columns: "AI-Text Embeddings", "AI-Image Embeddings"
+   - Each algorithm column shows results from that specific model
+   - Algorithms can be added/removed dynamically via checkboxes
+   - Rose-600 for first algorithm, Emerald-600 for second
+
+2. Validated Rows (full-width, one per level):
+   - AI Row (purple-600): Combined AI results awaiting validation
+   - HUMAN Row (blue-600): Human-validated labels
+   - EXPERT Row (amber-700): Expert-validated labels (Fabritius brown)
+   
+Each row contains a grid/list of artwork results and can be collapsed independently.
+
+
+Bulk Actions:
 =============
-```python
-from label_tool import (
-    LabelState,
-    get_enabled_levels,
-    LabelService,
-    ValidationEngine
-)
+- Checkboxes on each artwork tile (grid and list view)
+- Select all / Deselect all buttons in column headers
+- Action bar appears when items selected:
+  * Promote ⬇️: AI algorithms → HUMAN → EXPERT
+  * Demote ⬆️: EXPERT → HUMAN → AI Results
+  * Delete 🗑️: Remove labels from backend
+  * Hide 👁️: Hide artworks and show next results
 
-# Initialize state
-state = LabelState()
-state.selected_thesaurus = "Garnier"
-state.label_name = "Landscape"
-state.selected_algorithms = ["Semantic Search", "CLIP"]
+Note: Algorithms are auto-registered when algorithm_registry.py is imported.
+This happens automatically - no manual registration needed.
 
-# Create label service and validation engine
-service = LabelService("garnier")
-engine = ValidationEngine()
-
-# Run validation
-results = await engine.validate_label(
-    label_name=state.label_name,
-    label_definition=state.label_definition,
-    algorithms=state.selected_algorithms,
-    state=state
-)
-
-# Access results per level
-for level in get_enabled_levels():
-    level_results = state.get_level_results(level.name)
-    print(f"{level.display_name}: {level_results.total_count} results")
-```
-
-INTEGRATION WITH pages/label.py
-================================
-The page module uses the Controller Pattern:
-- LabelPageController owns LabelState and ValidationEngine instances
-- Delegates all business logic to this package
-- Uses view components from label_tool.views
-- Maintains only UI state and coordinates rendering
-
-DATA FLOW
-=========
-1. User selects label → LabelService.create_label()
-2. User selects algorithms → state.selected_algorithms updated
-3. User clicks Search → ValidationEngine.validate_label()
-4. For each level (EXPERT, HUMAN, AI):
-   - Set level.is_loading = True
-   - Run validation algorithms
-   - Store results in LevelResults
-   - Render column with results
-
-MULTI-LEVEL ARCHITECTURE
-========================
-- Each validation level (EXPERT, HUMAN, AI) gets independent results
-- Levels are defined in level_config.py with display properties
-- Results stored in state.results_per_level: Dict[str, LevelResults]
-- Validation engine runs queries per level
-- UI renders columns side-by-side for comparison
+Note: ValidationEngine currently uses mock data (mock_data.py) for testing.
+Production implementation will integrate with backend/llms.py (embeddings) 
+and backend/supabase_client.py (vector similarity search).
 """
 
-from .state import LabelState, ColumnResults
+from .state import LabelState, ValidationResults
 from .level_config import (
     ValidationLevel, 
     DEFAULT_LEVELS, 
@@ -135,10 +157,11 @@ from .algorithm_registry import AlgorithmInfo, AVAILABLE_ALGORITHMS, get_algorit
 from .label_service import LabelService
 from .validation_engine import ValidationEngine
 
+# Define what will be imported with 'from label_tool import *'
 __all__ = [
     # State
     'LabelState',
-    'ColumnResults',
+    'ValidationResults',
     
     # Level config
     'ValidationLevel',

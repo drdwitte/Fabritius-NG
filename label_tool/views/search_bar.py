@@ -66,42 +66,24 @@ def render_search_input(
             text_input.on('change', lambda e: on_term_select(e.args) if e.args else None)
 
 
-def render_search_bar(
-    selected_thesaurus: str,
-    selected_algorithms: list,
-    selected_levels: list,
-    label_name: str,
-    thesaurus_terms: list,
-    on_thesaurus_change: Callable,
-    on_new_label_click: Callable,
-    on_algorithm_toggle: Callable,
-    on_level_toggle: Callable,
-    on_search_click: Callable,
-    on_clear_label: Callable,
-    on_term_select: Callable
-) -> None:
+def render_search_bar(controller) -> None:
     """
     Render the search bar with thesaurus selector and controls.
     
     Args:
-        selected_thesaurus: Currently selected thesaurus name
-        selected_algorithms: List of selected algorithm names
-        selected_levels: List of selected validation level names
-        label_name: Current label name (None if no label)
-        thesaurus_terms: List of terms for autocomplete
-        on_thesaurus_change: Callback when thesaurus is changed
-        on_new_label_click: Callback when New Label button is clicked
-        on_algorithm_toggle: Callback when algorithm is toggled
-        on_level_toggle: Callback when validation level is toggled
-        on_search_click: Callback when Search button is clicked
-        on_clear_label: Callback when label is cleared
-        on_term_select: Callback when a term is selected from autocomplete
+        controller: The label page controller (provides state and callbacks)
     """
     # Top bar: full width, left input, right buttons
     with ui.row().props('flat').classes('w-full flex items-center justify-between'):
         # Left: search container with tag or input
         with ui.element('div').classes('flex-grow flex items-center gap-2 min-h-9'):
-            render_search_input(label_name, thesaurus_terms, selected_thesaurus, on_clear_label, on_term_select)
+            render_search_input(
+                controller.state.label_name,
+                controller.state.cached_thesaurus_terms,
+                controller.state.selected_thesaurus,
+                controller.clear_label,
+                controller.select_term
+            )
         
         # Right: action buttons
         with ui.row().classes('gap-2'):
@@ -113,18 +95,18 @@ def render_search_bar(
                                      'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 py-1')
                 with thesaurus_btn:
                     ui.icon('book').classes('text-gray-700 text-lg')
-                    ui.label(selected_thesaurus or 'Thesaurus').classes('text-gray-700 text-base font-bold').style('text-transform: none; margin-left: 10px;')
+                    ui.label(controller.state.selected_thesaurus or 'Thesaurus').classes('text-gray-700 text-base font-bold').style('text-transform: none; margin-left: 10px;')
                     with ui.menu():
-                        ui.menu_item('None (Free search)', on_click=lambda: on_thesaurus_change(None))
+                        ui.menu_item('None (Free search)', on_click=lambda: controller.select_thesaurus(None))
                         ui.separator()
                         for thesaurus_name in get_thesaurus_names():
                             ui.menu_item(
                                 thesaurus_name,
-                                on_click=lambda t=thesaurus_name: on_thesaurus_change(t)
+                                on_click=lambda t=thesaurus_name: controller.select_thesaurus(t)
                             )
             
             # New Label button
-            icon_button('add', 'New Label', on_new_label_click)
+            icon_button('add', 'New Label', controller.open_new_label_dialog)
             
             # Search button with algorithm selector dropdown
             with ui.element('div').classes('relative'):
@@ -137,12 +119,12 @@ def render_search_bar(
                             ui.label('(Select max 2)').classes('text-xs text-gray-500 mb-2')
                             
                             for algo_name in get_algorithm_names():
-                                is_selected = algo_name in selected_algorithms
-                                is_disabled = not is_selected and len(selected_algorithms) >= 2
+                                is_selected = algo_name in controller.state.selected_algorithms
+                                is_disabled = not is_selected and len(controller.state.selected_algorithms) >= 2
                                 ui.checkbox(
                                     algo_name, 
                                     value=is_selected,
-                                    on_change=lambda e, a=algo_name: on_algorithm_toggle(a, e.value)
+                                    on_change=lambda e, a=algo_name: controller.toggle_algorithm(a, e.value)
                                 ).classes('mb-2').props('disable' if is_disabled else '')
                             
                             ui.separator().classes('my-3')
@@ -160,11 +142,11 @@ def render_search_bar(
                             ]
                             
                             for level_key, level_display in validation_levels:
-                                is_selected = level_key in selected_levels
+                                is_selected = level_key in controller.state.selected_levels
                                 ui.checkbox(
                                     level_display, 
                                     value=is_selected,
-                                    on_change=lambda e, l=level_key: on_level_toggle(l, e.value)
+                                    on_change=lambda e, l=level_key: controller.toggle_level(l, e.value)
                                 ).classes('mb-2')
                             
                             ui.separator().classes('my-3')
@@ -173,7 +155,7 @@ def render_search_bar(
                             with ui.row().classes('justify-end w-full'):
                                 async def run_search():
                                     search_menu.close()
-                                    await on_search_click()
+                                    await controller.execute_search()
                                 
                                 ui.button('Run Search', on_click=run_search).props('color=primary')
 

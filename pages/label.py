@@ -37,7 +37,10 @@ from label_tool.views import (
     render_result_list_view,
     render_view_toggle,
     render_column_header,
-    render_algorithm_header
+    render_algorithm_header,
+    render_action_bar,
+    render_ai_results_row,
+    render_validated_row
 )
 
 
@@ -46,7 +49,7 @@ class LabelPageUIState:
     def __init__(self):
         self.search_container = None
         self.definition_container = None
-        self.columns_area = None
+        self.boxes_area = None
 
 
 class LabelPageController:
@@ -80,6 +83,7 @@ class LabelPageController:
             self.state.clear_label()
         
         self.state.selected_thesaurus = thesaurus
+        logger.info(f"State updated: selected_thesaurus = '{thesaurus}'")
         
         # Load thesaurus terms for autocomplete
         self._load_thesaurus_terms()
@@ -87,9 +91,9 @@ class LabelPageController:
         ui.notify(f'Selected thesaurus: {thesaurus}')
         
         # Re-render UI
-        self.render_search_bar()
-        self.render_definition()
-        self.render_columns()
+        self.update_search_bar()
+        self.update_definition()
+        self._update_boxes()
     
     def _load_thesaurus_terms(self):
         """Load terms from selected thesaurus for autocomplete."""
@@ -106,12 +110,13 @@ class LabelPageController:
         if term:
             logger.info(f"Term selected from autocomplete: {term}")
             self.state.label_name = term
+            logger.info(f"State updated: label_name = '{term}'")
             ui.notify(f'Selected label: {term}', type='positive')
             
             # Re-render UI
-            self.render_search_bar()
-            self.render_definition()
-            self.render_columns()
+            self.update_search_bar()
+            self.update_definition()
+            self._update_boxes()
     
     # ========== Algorithm Actions ==========
     
@@ -141,8 +146,8 @@ class LabelPageController:
         logger.info(f"Currently selected algorithms: {self.state.selected_algorithms}")
         ui.notify(f'Selected algorithms: {", ".join(self.state.selected_algorithms) if self.state.selected_algorithms else "None"}')
         
-        # Re-render columns
-        self.render_columns()
+        # Re-render boxes
+        self._update_boxes()
     
     def toggle_level(self, level: str, is_checked: bool):
         """Toggle a validation level on/off."""
@@ -158,8 +163,8 @@ class LabelPageController:
         logger.info(f"Currently selected levels: {self.state.selected_levels}")
         ui.notify(f'Selected levels: {", ".join(self.state.selected_levels) if self.state.selected_levels else "None"}')
         
-        # Re-render columns
-        self.render_columns()
+        # Re-render boxes
+        self._update_boxes()
     
     # ========== Label Actions ==========
     
@@ -206,8 +211,8 @@ class LabelPageController:
             dialog.close()
             
             # Re-render UI
-            self.render_search_bar()
-            self.render_definition()
+            self.update_search_bar()
+            self.update_definition()
             
         except Exception as e:
             logger.error(f"Failed to create label: {str(e)}")
@@ -221,17 +226,17 @@ class LabelPageController:
         ui.notify('Label cleared')
         
         # Re-render UI
-        self.render_search_bar()
-        self.render_definition()
-        self.render_columns()
+        self.update_search_bar()
+        self.update_definition()
+        self._update_boxes()
     
     # ========== Search Actions ==========
     
     async def execute_search(self):
         """Execute label validation search for open boxes only."""
         # Get open boxes
-        open_ai_boxes = self.state.get_open_ai_column_keys()
-        open_validated_boxes = self.state.get_open_validated_column_keys()
+        open_ai_boxes = self.state.get_open_ai_box_keys()
+        open_validated_boxes = self.state.get_open_validated_box_keys()
         
         if not open_ai_boxes and not open_validated_boxes:
             logger.warning("Search attempted with all boxes closed")
@@ -250,8 +255,8 @@ class LabelPageController:
             self.state.is_searching = True
             self.state.search_error = None
             
-            # Re-render columns to show loading state
-            self.render_columns()
+            # Re-render boxes to show loading state
+            self._update_boxes()
             
             # Notify which queries are being executed
             if self.state.selected_algorithms:
@@ -276,16 +281,16 @@ class LabelPageController:
             )
             
             # Update state with results
-            for column_key, column_results in results.items():
-                self.state.results_per_column[column_key] = column_results
+            for box_key, box_results in results.items():
+                self.state.results_per_box[box_key] = box_results
             
             self.state.is_searching = False
             
             logger.info("Search completed successfully")
             ui.notify('Validation complete')
             
-            # Re-render columns with results
-            self.render_columns()
+            # Re-render boxes with results
+            self._update_boxes()
             
         except Exception as e:
             logger.error(f"Search failed: {str(e)}")
@@ -293,12 +298,48 @@ class LabelPageController:
             self.state.search_error = str(e)
             ui.notify(f'Search failed: {str(e)}', type='negative')
             
-            # Re-render columns to show error state
-            self.render_columns()
+            # Re-render boxes to show error state
+            self._update_boxes()
+    
+    def _update_boxes(self):
+        """Re-render all result boxes."""
+        if not self.ui_state.boxes_area:
+            return
+        self.ui_state.boxes_area.clear()
+        with self.ui_state.boxes_area:
+            # AI Results row
+            if self.state.selected_algorithms:
+                render_ai_results_row(self)
+            
+            # Validated rows
+            if VALIDATION_LEVEL_AI in self.state.selected_levels:
+                render_validated_row(
+                    self,
+                    box_key=VALIDATION_LEVEL_AI,
+                    row_label="Level: AI",
+                    subtitle="Label was validated by AI",
+                    color="purple-600"
+                )
+            if VALIDATION_LEVEL_HUMAN in self.state.selected_levels:
+                render_validated_row(
+                    self,
+                    box_key=VALIDATION_LEVEL_HUMAN,
+                    row_label="Level: Human",
+                    subtitle="Label was validated by a human",
+                    color="blue-600"
+                )
+            if VALIDATION_LEVEL_EXPERT in self.state.selected_levels:
+                render_validated_row(
+                    self,
+                    box_key=VALIDATION_LEVEL_EXPERT,
+                    row_label="Level: Expert",
+                    subtitle="Label was validated by expert (art historian)",
+                    color="amber-700"
+                )
     
     # ========== Rendering Methods ==========
     
-    def render_search_bar(self):
+    def update_search_bar(self):
         """Render the search bar."""
         if not self.ui_state.search_container:
             return
@@ -306,22 +347,9 @@ class LabelPageController:
         self.ui_state.search_container.clear()
         
         with self.ui_state.search_container:
-            render_search_bar(
-                selected_thesaurus=self.state.selected_thesaurus,
-                selected_algorithms=self.state.selected_algorithms,
-                selected_levels=self.state.selected_levels,
-                label_name=self.state.label_name,
-                thesaurus_terms=self.state.cached_thesaurus_terms,
-                on_thesaurus_change=self.select_thesaurus,
-                on_new_label_click=self.open_new_label_dialog,
-                on_algorithm_toggle=self.toggle_algorithm,
-                on_level_toggle=self.toggle_level,
-                on_search_click=self.execute_search,
-                on_clear_label=self.clear_label,
-                on_term_select=self.select_term
-            )
+            render_search_bar(self)
     
-    def render_definition(self):
+    def update_definition(self):
         """Render the definition text below the search bar in italics."""
         if not self.ui_state.definition_container:
             return
@@ -337,242 +365,220 @@ class LabelPageController:
                     truncated_def += '...'
                 ui.label(truncated_def).classes('text-sm text-gray-600 italic mt-1')
     
-    def render_columns(self):
-        """Render all result boxes in layered structure."""
-        if not self.ui_state.columns_area:
+    # ========== Selection Management ==========
+    
+    def toggle_artwork_selection(self, box_key: str, artwork_id: str):
+        """Toggle selection of an artwork."""
+        self.state.toggle_artwork_selection(box_key, artwork_id)
+        logger.info(f"Toggled selection for {artwork_id} in {box_key}")
+        
+        # Re-render boxes to update checkboxes and show/hide action bar
+        self._update_boxes()
+    
+    def select_all_in_box(self, box_key: str):
+        """Select all artworks in a box."""
+        self.state.select_all_artworks(box_key)
+        logger.info(f"Selected all artworks in {box_key}")
+        self._update_boxes()
+    
+    def deselect_all_in_box(self, box_key: str):
+        """Deselect all artworks in a box."""
+        self.state.deselect_all_artworks(box_key)
+        logger.info(f"Deselected all artworks in {box_key}")
+        self._update_boxes()
+    
+    def promote_selected(self, from_box_key: str):
+        """
+        Promote selected artworks to the next validation level.
+        
+        Promotion flow:
+        - Algorithm results (AI-*) → HUMAN
+        - AI Results → HUMAN
+        - HUMAN → EXPERT
+        - EXPERT → cannot promote
+        """
+        selected_ids = self.state.get_selected_artworks(from_box_key)
+        if not selected_ids:
             return
         
-        self.ui_state.columns_area.clear()
+        logger.info(f"Promoting {len(selected_ids)} artworks from {from_box_key}")
         
-        with self.ui_state.columns_area:
-            # Layer 1: AI Results (collapsible row with colored header)
-            if self.state.selected_algorithms:
-                self.render_ai_results_row()
-            
-            # Layer 2-4: Validated rows (only show selected levels)
-            if VALIDATION_LEVEL_AI in self.state.selected_levels:
-                self.render_validated_row(VALIDATION_LEVEL_AI, "Level: AI", "Label was validated by AI", "purple-600")
-            if VALIDATION_LEVEL_HUMAN in self.state.selected_levels:
-                self.render_validated_row(VALIDATION_LEVEL_HUMAN, "Level: Human", "Label was validated by a human", "blue-600")
-            if VALIDATION_LEVEL_EXPERT in self.state.selected_levels:
-                self.render_validated_row(VALIDATION_LEVEL_EXPERT, "Level: Expert", "Label was validated by expert (art historian)", "amber-700")
-    
-    def render_ai_results_row(self):
-        """Render AI Results as a collapsible row like validated rows."""
-        box_key = "AI_RESULTS"
-        is_collapsed = not self.state.is_box_open(box_key)
+        # Determine target level
+        if from_box_key.startswith('AI'):
+            to_box_key = VALIDATION_LEVEL_HUMAN
+        elif from_box_key == 'HUMAN':
+            to_box_key = VALIDATION_LEVEL_EXPERT
+        else:
+            logger.warning(f"Cannot promote from {from_box_key}")
+            ui.notify('Cannot promote from EXPERT level', type='warning')
+            return
         
-        # Calculate total results across all algorithms
-        total_results = 0
-        for algo_name in self.state.selected_algorithms:
-            algo_box_key = f"AI-{algo_name}"
-            column_results = self.state.get_column_results(algo_box_key)
-            if column_results:
-                total_results += column_results.total_count
+        # Get source and target results
+        source_results = self.state.get_box_results(from_box_key)
+        target_results = self.state.get_box_results(to_box_key)
         
-        # Create a dummy ColumnResults for the header
-        from label_tool.state import ColumnResults
-        ai_results = ColumnResults(column_key=box_key, column_label="AI Results")
-        ai_results.total_count = total_results
+        # Find artworks to promote
+        promoted_artworks = []
+        remaining_artworks = []
         
-        with ui.element('div').classes('w-full mb-4'):
-            # Main header with collapse
-            with ui.column().classes('w-full bg-white rounded-lg shadow-md overflow-hidden'):
-                # AI Results header (gray-600 color)
-                result_count = total_results
-                render_column_header(
-                    title="AI Results",
-                    count=result_count,
-                    is_collapsed=is_collapsed,
-                    on_toggle_collapse=lambda: self.toggle_box(box_key),
-                    color="gray-600",
-                    subtitle="Labels suggested by AI to be validated"
-                )
-                
-                # Collapsible content area
-                content_height = '0px' if is_collapsed else 'none'
-                overflow_class = 'overflow-hidden' if is_collapsed else ''
-                with ui.column().classes(f'{overflow_class} transition-all duration-500 ease-in-out').style(f'max-height: {content_height};' if is_collapsed else ''):
-                    with ui.column().classes('p-4'):
-                        # Algorithm columns in a row
-                        with ui.row().classes('w-full gap-4'):
-                            for i, algo_name in enumerate(self.state.selected_algorithms):
-                                algo_box_key = f"AI-{algo_name}"
-                                algo_color = "rose-600" if i == 0 else "emerald-600"
-                                
-                                # Render algorithm box with close button
-                                column_results = self.state.get_column_results(algo_box_key)
-                                self.render_algorithm_box(
-                                    box_key=algo_box_key,
-                                    label=f"{algo_name} Embeddings",
-                                    color=algo_color,
-                                    results=column_results,
-                                    on_close=lambda a=algo_name: self.close_algorithm(a)
-                                )
-    
-    def render_validated_row(self, box_key: str, row_label: str, subtitle: str, color: str):
-        """Render a validated data row."""
-        # Always render result box (header stays visible when collapsed)
-        column_results = self.state.get_column_results(box_key)
-        with ui.element('div').classes('w-full mb-4'):
-            self.render_result_box(
-                box_key=box_key,
-                label=row_label,
-                color=color,
-                results=column_results,
-                show_label=False,
-                subtitle=subtitle
-            )
-    
-    def render_result_box(self, box_key: str, label: str, color: str, results, show_label: bool = False, subtitle: str = None):
-        """Render an open result box with column header and results."""
-        is_ai_column = box_key.startswith("AI-") and box_key not in [VALIDATION_LEVEL_AI, VALIDATION_LEVEL_HUMAN, VALIDATION_LEVEL_EXPERT]
-        is_validated_column = box_key in [VALIDATION_LEVEL_AI, VALIDATION_LEVEL_HUMAN, VALIDATION_LEVEL_EXPERT]
-        
-        # Check if column is collapsed
-        is_collapsed = not self.state.is_box_open(box_key)
-        
-        # Determine grid columns and max items based on row type
-        grid_cols = None
-        max_items = None
-        
-        if is_ai_column:
-            # AI Results row: varies by algorithm count
-            num_algorithms = len(self.state.selected_algorithms) if self.state.selected_algorithms else 1
-            if num_algorithms == 1:
-                # 1 algorithm: 5 columns x 2 rows = 10 items
-                grid_cols = 5
-                max_items = 10
+        for artwork in source_results.results:
+            artwork_id = artwork.get('id', artwork.get('inventory_number'))
+            if artwork_id in selected_ids:
+                promoted_artworks.append(artwork)
             else:
-                # 2 algorithms: 3 columns x 2 rows = 6 items per algorithm
-                grid_cols = 3
-                max_items = 6
-        elif is_validated_column:
-            # Validated rows (AI/HUMAN/EXPERT): always 5 columns x 2 rows = 10 items
-            grid_cols = 5
-            max_items = 10
+                remaining_artworks.append(artwork)
         
-        # Determine header color based on column type
-        if is_ai_column:
-            # For AI algorithm columns, use different colors for each algorithm
-            if self.state.selected_algorithms:
-                algo_index = None
-                for i, algo in enumerate(self.state.selected_algorithms):
-                    if box_key == f"AI-{algo}":
-                        algo_index = i
-                        break
-                
-                if algo_index == 0:
-                    header_color = "rose-600"     # Rose for first algorithm
-                elif algo_index == 1:
-                    header_color = "emerald-600"  # Emerald for second algorithm
-                else:
-                    header_color = "purple-700"   # Fallback purple
-            else:
-                header_color = "purple-700"       # Default purple if no algorithms
-        elif box_key == VALIDATION_LEVEL_AI:
-            header_color = "purple-600"  # Purple for AI validated
-        elif box_key == VALIDATION_LEVEL_HUMAN:
-            header_color = "blue-600"    # Blue for Human
-        elif box_key == VALIDATION_LEVEL_EXPERT:
-            header_color = "amber-700"   # Amber for Expert (Fabritius branding)
-        elif box_key == "":
-            header_color = "gray-400"    # Light gray for empty AI Results (no algorithm selected)
-        else:
-            header_color = "amber-800"   # Default Fabritius brown
+        # Update source box (remove promoted)
+        source_results.results = remaining_artworks
+        source_results.total_count = len(remaining_artworks)
         
-        with ui.column().classes('flex-1 bg-white rounded-lg shadow-md overflow-hidden'):
-            # Column header with title, count badge, and collapse button
-            result_count = results.total_count if results else 0
-            render_column_header(
-                title=label,
-                count=result_count,
-                is_collapsed=is_collapsed,
-                on_toggle_collapse=lambda: self.toggle_box(box_key),
-                color=header_color,
-                subtitle=subtitle  # Pass subtitle to header
-            )
-            
-            # Content area with smooth collapse animation
-            # Use a large max-height for smooth transition (2000px should accommodate most content)
-            content_height = '0px' if is_collapsed else 'none'
-            overflow_class = 'overflow-hidden' if is_collapsed else ''
-            with ui.column().classes(f'{overflow_class} transition-all duration-500 ease-in-out').style(f'max-height: {content_height};' if is_collapsed else ''):
-                with ui.column().classes('p-4'):
-                    # View toggle in top right
-                    with ui.row().classes('w-full items-center justify-end mb-4'):
-                        render_view_toggle(
-                            current_view=self.state.view_mode,
-                            on_toggle_view=self.toggle_view
-                        )
-                    
-                    # Results area
-                    if results and results.results:
-                        # Limit results based on max_items
-                        display_results = results.results[:max_items] if max_items else results.results
-                        
-                        logger.info(f"Rendering {len(display_results)} results for {box_key}, view mode: {self.state.view_mode}")
-                        
-                        if self.state.view_mode == 'grid':
-                            render_result_grid_view(display_results, is_ai_column=is_ai_column, grid_cols=grid_cols)
-                        else:
-                            render_result_list_view(display_results, is_ai_column=is_ai_column)
-                    else:
-                        logger.warning(f"No results to display for {box_key}: results={results}, has results={results.results if results else 'None'}")
-                        ui.label('No results').classes('text-gray-500 italic')
+        # Update target box (add promoted to the beginning)
+        target_results.results = promoted_artworks + target_results.results
+        target_results.total_count = len(target_results.results)
+        
+        # TODO: Backend call to update validation levels
+        # self.label_service.update_validation_level(selected_ids, to_box_key)
+        
+        ui.notify(f'Promoted {len(selected_ids)} artworks to {to_box_key}', type='positive')
+        self.deselect_all_in_box(from_box_key)
+        self._update_boxes()
     
-    def render_algorithm_box(self, box_key: str, label: str, color: str, results, on_close):
-        """Render an algorithm box with close button instead of collapse."""
-        is_ai_column = True
+    def demote_selected(self, from_box_key: str):
+        """
+        Demote selected artworks to the previous validation level.
         
-        # Determine grid columns and max items for AI columns
-        num_algorithms = len(self.state.selected_algorithms) if self.state.selected_algorithms else 1
-        if num_algorithms == 1:
-            grid_cols = 5
-            max_items = 10
+        Demotion flow:
+        - EXPERT → HUMAN
+        - HUMAN → AI Results
+        - AI Results → cannot demote
+        - Algorithm results (AI-*) → cannot demote
+        """
+        selected_ids = self.state.get_selected_artworks(from_box_key)
+        if not selected_ids:
+            return
+        
+        logger.info(f"Demoting {len(selected_ids)} artworks from {from_box_key}")
+        
+        # Determine target level
+        if from_box_key == 'EXPERT':
+            to_box_key = VALIDATION_LEVEL_HUMAN
+        elif from_box_key == 'HUMAN':
+            to_box_key = VALIDATION_LEVEL_AI
         else:
-            grid_cols = 3
-            max_items = 6
+            logger.warning(f"Cannot demote from {from_box_key}")
+            ui.notify('Cannot demote from AI level', type='warning')
+            return
         
-        # Use flex-1 for single algorithm (takes full width), flex-1 for 2 algorithms (50% each)
-        if num_algorithms == 1:
-            width_class = 'flex-1'
-        else:
-            width_class = 'flex-1'  # Each takes 50% of available space with gap-4
+        # Get source and target results
+        source_results = self.state.get_box_results(from_box_key)
+        target_results = self.state.get_box_results(to_box_key)
         
-        with ui.column().classes(f'{width_class} bg-white rounded-lg shadow-md overflow-hidden'):
-            # Algorithm header with close button (X)
-            result_count = results.total_count if results else 0
-            render_algorithm_header(
-                title=label,
-                count=result_count,
-                on_close=on_close,
-                color=color
-            )
-            
-            # Content always visible (no collapse for algorithms)
-            with ui.column().classes('p-4'):
-                # View toggle in top right
-                with ui.row().classes('w-full items-center justify-end mb-4'):
-                    render_view_toggle(
-                        current_view=self.state.view_mode,
-                        on_toggle_view=self.toggle_view
-                    )
-                
-                # Results area
-                if results and results.results:
-                    # Limit results based on max_items
-                    display_results = results.results[:max_items] if max_items else results.results
-                    
-                    logger.info(f"Rendering {len(display_results)} algo results for {box_key}, view mode: {self.state.view_mode}")
-                    
-                    if self.state.view_mode == 'grid':
-                        render_result_grid_view(display_results, is_ai_column=is_ai_column, grid_cols=grid_cols)
-                    else:
-                        render_result_list_view(display_results, is_ai_column=is_ai_column)
-                else:
-                    logger.warning(f"No algo results for {box_key}")
-                    ui.label('No results').classes('text-gray-500 italic')
+        # Find artworks to demote
+        demoted_artworks = []
+        remaining_artworks = []
+        
+        for artwork in source_results.results:
+            artwork_id = artwork.get('id', artwork.get('inventory_number'))
+            if artwork_id in selected_ids:
+                demoted_artworks.append(artwork)
+            else:
+                remaining_artworks.append(artwork)
+        
+        # Update source box (remove demoted)
+        source_results.results = remaining_artworks
+        source_results.total_count = len(remaining_artworks)
+        
+        # Update target box (add demoted to the beginning)
+        target_results.results = demoted_artworks + target_results.results
+        target_results.total_count = len(target_results.results)
+        
+        # TODO: Backend call to update validation levels
+        # self.label_service.update_validation_level(selected_ids, to_box_key)
+        
+        ui.notify(f'Demoted {len(selected_ids)} artworks to {to_box_key}', type='positive')
+        self.deselect_all_in_box(from_box_key)
+        self._update_boxes()
+    
+    def delete_selected(self, box_key: str):
+        """Delete labels for selected artworks."""
+        selected_ids = self.state.get_selected_artworks(box_key)
+        if not selected_ids:
+            return
+        
+        logger.info(f"Deleting {len(selected_ids)} labels from {box_key}")
+        
+        # Get box results
+        box_results = self.state.get_box_results(box_key)
+        
+        # Remove deleted artworks from results
+        remaining_artworks = []
+        deleted_count = 0
+        
+        for artwork in box_results.results:
+            artwork_id = artwork.get('id', artwork.get('inventory_number'))
+            if artwork_id not in selected_ids:
+                remaining_artworks.append(artwork)
+            else:
+                deleted_count += 1
+        
+        # Update box results
+        box_results.results = remaining_artworks
+        box_results.total_count = len(remaining_artworks)
+        
+        # TODO: Backend call to delete labels
+        # try:
+        #     self.label_service.delete_labels(list(selected_ids), self.state.label_name)
+        # except Exception as e:
+        #     logger.error(f"Failed to delete labels: {e}")
+        #     ui.notify(f'Failed to delete labels: {e}', type='negative')
+        #     return
+        
+        ui.notify(f'Deleted {deleted_count} labels', type='positive')
+        self.deselect_all_in_box(box_key)
+        self._update_boxes()
+    
+    def hide_selected(self, box_key: str):
+        """
+        Hide selected artworks and replace with next results.
+        
+        If 10 results are shown and 3 are hidden, results 11-13 become visible.
+        Hidden artworks are moved to the end of the results list and marked as hidden.
+        """
+        selected_ids = self.state.get_selected_artworks(box_key)
+        if not selected_ids:
+            return
+        
+        logger.info(f"Hiding {len(selected_ids)} artworks from {box_key}")
+        
+        # Get box results
+        box_results = self.state.get_box_results(box_key)
+        
+        # Separate visible and hidden artworks
+        visible_artworks = []
+        hidden_artworks_list = []
+        
+        for artwork in box_results.results:
+            artwork_id = artwork.get('id', artwork.get('inventory_number'))
+            if artwork_id in selected_ids:
+                # Mark as hidden and move to end
+                artwork['_hidden'] = True
+                hidden_artworks_list.append(artwork)
+                # Add to hidden tracking
+                if box_key not in self.state.hidden_artworks:
+                    self.state.hidden_artworks[box_key] = set()
+                self.state.hidden_artworks[box_key].add(artwork_id)
+            else:
+                visible_artworks.append(artwork)
+        
+        # Reorder: visible first, then hidden (so next ones become visible)
+        box_results.results = visible_artworks + hidden_artworks_list
+        
+        # Note: We keep the same total_count but only show non-hidden in views
+        # The render functions will need to filter out _hidden artworks
+        
+        ui.notify(f'Hidden {len(selected_ids)} artworks', type='positive')
+        self.deselect_all_in_box(box_key)
+        self._update_boxes()
     
     def close_algorithm(self, algo_name: str):
         """Close (remove) an algorithm from the selected list."""
@@ -580,9 +586,9 @@ class LabelPageController:
             self.state.selected_algorithms.remove(algo_name)
             logger.info(f"Closed algorithm: {algo_name}")
             
-            # Re-render search bar to update checkboxes and columns
-            self.render_search_bar()
-            self.render_columns()
+            # Re-render search bar to update checkboxes and boxes
+            self.update_search_bar()
+            self._update_boxes()
     
     def toggle_box(self, box_key: str):
         """Toggle a box open/closed and sync with algorithms."""
@@ -591,17 +597,17 @@ class LabelPageController:
         is_open = self.state.is_box_open(box_key)
         logger.info(f"Box '{box_key}' {'opened' if is_open else 'closed'}")
         
-        # Re-render search bar to update checkboxes and columns
-        self.render_search_bar()
-        self.render_columns()
+        # Re-render search bar to update checkboxes and boxes
+        self.update_search_bar()
+        self._update_boxes()
     
     def toggle_view(self, view_mode: str):
         """Toggle between grid and list view."""
         self.state.view_mode = view_mode
         logger.info(f"View mode changed to: {view_mode}")
         
-        # Re-render columns with new view
-        self.render_columns()
+        # Re-render boxes with new view
+        self._update_boxes()
 
 
 # ========== Page Definition ==========
@@ -625,12 +631,15 @@ def label_page():
         # Search bar section
         with ui.card().classes('w-full p-4'):
             controller.ui_state.search_container = ui.column().classes('w-full gap-4')
-            controller.render_search_bar()
+            controller.update_search_bar()
             
             # Definition (appears when label is selected)
             controller.ui_state.definition_container = ui.element('div').classes('w-full')
-            controller.render_definition()
+            controller.update_definition()
         
-        # Validation level columns section
-        controller.ui_state.columns_area = ui.column().classes('w-full')
-        controller.render_columns()
+        # Validation level boxes section
+        controller.ui_state.boxes_area = ui.column().classes('w-full')
+        controller._update_boxes()
+
+
+

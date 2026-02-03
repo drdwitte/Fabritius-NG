@@ -10,7 +10,7 @@ Generates columns for:
 from typing import List, Dict, Any
 from loguru import logger
 
-from .state import LabelState, ColumnResults
+from .state import LabelState, ValidationResults
 from .mock_data import (
     TEXT_PAINTINGS, 
     MULTIMODAL_PAINTINGS,
@@ -34,7 +34,7 @@ class ValidationEngine:
         algorithms: List[str],
         state: LabelState,
         validated_boxes: List[str] = None
-    ) -> Dict[str, ColumnResults]:
+    ) -> Dict[str, ValidationResults]:
         """
         Validate a label using selected algorithms and fetch validated data.
         
@@ -64,10 +64,10 @@ class ValidationEngine:
             column_key = f"AI-{algo_name}"
             logger.info(f"Running algorithm: {algo_name}")
             
-            column_results = state.get_column_results(column_key)
-            column_results.column_label = f"AI - {algo_name}"
-            column_results.is_loading = True
-            column_results.error = None
+            box_results = state.get_box_results(column_key)
+            box_results.column_label = f"AI - {algo_name}"
+            box_results.is_loading = True
+            box_results.error = None
             
             try:
                 artworks = await self._run_algorithm(
@@ -76,27 +76,27 @@ class ValidationEngine:
                     algorithm_name=algo_name
                 )
                 
-                column_results.results = artworks
-                column_results.total_count = len(artworks)
-                column_results.is_loading = False
+                box_results.results = artworks
+                box_results.total_count = len(artworks)
+                box_results.is_loading = False
                 
-                logger.info(f"Algorithm {algo_name} complete: {column_results.total_count} results")
+                logger.info(f"Algorithm {algo_name} complete: {box_results.total_count} results")
                 
             except Exception as e:
                 logger.error(f"Error running algorithm {algo_name}: {str(e)}")
-                column_results.error = str(e)
-                column_results.is_loading = False
+                box_results.error = str(e)
+                box_results.is_loading = False
             
-            results[column_key] = column_results
+            results[column_key] = box_results
         
         # Fetch validated data columns (only for requested boxes)
         for column_key in validated_boxes:
             logger.info(f"Fetching validated data: {column_key}")
             
-            column_results = state.get_column_results(column_key)
-            column_results.column_label = column_key.replace("AI-validated", "AI ✓")
-            column_results.is_loading = True
-            column_results.error = None
+            box_results = state.get_box_results(column_key)
+            box_results.column_label = column_key.replace("AI-validated", "AI ✓")
+            box_results.is_loading = True
+            box_results.error = None
             
             try:
                 artworks = await self._fetch_validated_data(
@@ -104,18 +104,18 @@ class ValidationEngine:
                     validation_level=column_key
                 )
                 
-                column_results.results = artworks
-                column_results.total_count = len(artworks)
-                column_results.is_loading = False
+                box_results.results = artworks
+                box_results.total_count = len(artworks)
+                box_results.is_loading = False
                 
-                logger.info(f"Validated data {column_key} complete: {column_results.total_count} results")
+                logger.info(f"Validated data {column_key} complete: {box_results.total_count} results")
                 
             except Exception as e:
                 logger.error(f"Error fetching validated data {column_key}: {str(e)}")
-                column_results.error = str(e)
-                column_results.is_loading = False
+                box_results.error = str(e)
+                box_results.is_loading = False
             
-            results[column_key] = column_results
+            results[column_key] = box_results
         
         return results
     
