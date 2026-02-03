@@ -197,11 +197,6 @@ class LabelPageController:
     
     async def execute_search(self):
         """Execute label validation search for open boxes only."""
-        if not self.state.has_label():
-            logger.warning("Search attempted without a label selected")
-            ui.notify('Please select or create a label first', type='warning')
-            return
-        
         # Get open boxes
         open_ai_boxes = self.state.get_open_ai_column_keys()
         open_validated_boxes = self.state.get_open_validated_column_keys()
@@ -217,6 +212,9 @@ class LabelPageController:
         )
         
         try:
+            # Clear all previous results
+            self.state.clear_all_results()
+            
             self.state.is_searching = True
             self.state.search_error = None
             
@@ -224,20 +222,25 @@ class LabelPageController:
             self.render_columns()
             
             # Notify which queries are being executed
-            if open_ai_boxes:
-                algo_names = [box.split('-')[1] for box in open_ai_boxes]
-                ui.notify(f'Running AI algorithms: {", ".join(algo_names)}')
+            if self.state.selected_algorithms:
+                ui.notify(f'Running AI algorithms: {", ".join(self.state.selected_algorithms)}')
             
-            if open_validated_boxes:
-                ui.notify(f'Fetching validated data: {", ".join(open_validated_boxes)}')
+            if self.state.selected_levels:
+                level_display = {
+                    'AI': 'AI',
+                    'HUMAN': 'Human', 
+                    'EXPERT': 'Expert'
+                }
+                level_names = [level_display.get(l, l) for l in self.state.selected_levels]
+                ui.notify(f'Fetching validated data: {", ".join(level_names)}')
             
-            # Run validation only for open boxes
+            # Run validation only for selected algorithms and levels
             results = await self.validation_engine.validate_label(
                 label_name=self.state.label_name,
                 label_definition=self.state.label_definition or '',
-                algorithms=[box.split('-')[1] for box in open_ai_boxes],  # Extract algorithm names
+                algorithms=self.state.selected_algorithms,  # Use selected algorithms, not open boxes
                 state=self.state,
-                validated_boxes=open_validated_boxes
+                validated_boxes=self.state.selected_levels  # Use selected levels, not open boxes
             )
             
             # Update state with results

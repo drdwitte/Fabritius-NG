@@ -35,7 +35,7 @@ def render_search_input(
     else:
         # Show input field when no label is selected
         ui.input(
-            placeholder='Free (semantic) text search, or use the buttons on the right to limit the search to a thesaurus or create and define your own label', 
+            placeholder='Type to experiment, or choose thesaurus label →', 
             value=''
         ).props('borderless dense').classes('flex-grow')
 
