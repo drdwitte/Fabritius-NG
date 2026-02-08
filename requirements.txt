@@ -1,4 +1,6 @@
 nicegui
+plotly
+numpy
 
 # Nieuwe backend dependencies (migratie)
 supabase==2.23.2

@@ -31,6 +31,281 @@ class SupabaseClient:
         self.url = os.getenv("FABRITIUS_SUPABASE_URL") or os.getenv("SUPABASE_URL")
         self.key = os.getenv("FABRITIUS_SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         self.client: Client = create_client(self.url, self.key)
+    
+    # Analytics / Insights methods (mockup data for now)
+    
+    def get_total_artworks(self) -> int:
+        """Get total number of artworks in database.
+        
+        Returns:
+            Total artwork count (currently mockup: 12,375)
+        """
+        # TODO: Replace with actual query: self.client.table(self.TABLE_FABRITIUS).select("count", count="exact").execute().count
+        return 12375
+    
+    def get_unique_tags_count(self) -> int:
+        """Get number of unique tags in database.
+        
+        Returns:
+            Unique tags count (currently mockup: 4,597)
+        """
+        # TODO: Replace with actual query: self.client.table(self.TABLE_TAGS).select("count", count="exact").execute().count
+        return 4597
+    
+    def get_assigned_tags_count(self) -> int:
+        """Get total number of tag assignments (artwork-tag relationships).
+        
+        Returns:
+            Total assigned tags count (currently mockup: 63,200)
+        """
+        # TODO: Replace with actual query: self.client.table(self.TABLE_ARTWORK_TAGS).select("count", count="exact").execute().count
+        return 63200
+    
+    def get_tag_activity(self, period: str = 'day', days: int = 30) -> List[Dict]:
+        """Get tag activity over time (created, deleted, promoted, demoted).
+        
+        Args:
+            period: Aggregation period ('day', 'week', 'month')
+            days: Number of days to look back
+            
+        Returns:
+            List of dicts with date, created, deleted, promoted, demoted counts (mockup data)
+        """
+        # TODO: Replace with actual query from tag history/audit table
+        from datetime import datetime, timedelta
+        import random
+        
+        # Fixed date range: Dec 1, 2025 to Feb 9, 2026 (70 days)
+        start_date = datetime(2025, 12, 1)
+        end_date = datetime(2026, 2, 9)
+        total_days = (end_date - start_date).days + 1
+        
+        data = []
+        
+        if period == 'day':
+            num_days = min(days, total_days)
+            for i in range(num_days):
+                date = start_date + timedelta(days=i)
+                data.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'created': random.randint(10, 50),
+                    'deleted': random.randint(0, 15),
+                    'promoted': random.randint(5, 25),
+                    'demoted': random.randint(0, 10)
+                })
+        elif period == 'week':
+            num_weeks = min(days // 7, total_days // 7)
+            for i in range(num_weeks):
+                date = start_date + timedelta(weeks=i)
+                data.append({
+                    'date': date.strftime('Week %W'),
+                    'created': random.randint(100, 300),
+                    'deleted': random.randint(10, 80),
+                    'promoted': random.randint(50, 150),
+                    'demoted': random.randint(10, 60)
+                })
+        else:  # month
+            # Dec 2025, Jan 2026, Feb 2026
+            data.append({
+                'date': 'December 2025',
+                'created': random.randint(400, 1200),
+                'deleted': random.randint(50, 300),
+                'promoted': random.randint(200, 600),
+                'demoted': random.randint(50, 250)
+            })
+            data.append({
+                'date': 'January 2026',
+                'created': random.randint(400, 1200),
+                'deleted': random.randint(50, 300),
+                'promoted': random.randint(200, 600),
+                'demoted': random.randint(50, 250)
+            })
+            data.append({
+                'date': 'February 2026',
+                'created': random.randint(200, 600),
+                'deleted': random.randint(25, 150),
+                'promoted': random.randint(100, 300),
+                'demoted': random.randint(25, 125)
+            })
+        
+        return data
+    
+    def get_user_contributions(self, days: int = 90) -> Dict[str, List[Dict]]:
+        """Get user contribution activity (GitHub-style calendar data).
+        
+        Args:
+            days: Number of days to look back
+            
+        Returns:
+            Dict mapping usernames to list of {date, count} contributions (mockup data)
+        """
+        # TODO: Replace with actual query from tag history/audit table grouped by user
+        from datetime import datetime, timedelta
+        import random
+        
+        # Fixed date range: Dec 1, 2025 to Feb 9, 2026 (70 days)
+        start_date = datetime(2025, 12, 1)
+        end_date = datetime(2026, 2, 9)
+        total_days = (end_date - start_date).days + 1
+        
+        users = ['Dieter', 'Lies', 'Karine', 'Lara', 'Wouter', 'Roxanne']
+        
+        contributions = {}
+        for user in users:
+            user_data = []
+            for i in range(total_days):
+                date = start_date + timedelta(days=i)
+                # Random contributions with some days having 0 (realistic pattern)
+                count = random.choices([0, random.randint(1, 5), random.randint(5, 15), random.randint(15, 40)], 
+                                      weights=[0.3, 0.4, 0.2, 0.1])[0]
+                user_data.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'count': count
+                })
+            contributions[user] = user_data
+        
+        return contributions
+    
+    def get_llm_statistics(self, period: str = 'day', days: int = 30) -> List[Dict]:
+        """Get LLM usage statistics (API calls and token consumption).
+        
+        Args:
+            period: Aggregation period ('day', 'week', 'month')
+            days: Number of days to look back
+            
+        Returns:
+            List of dicts with date, api_calls, tokens_used (mockup data)
+        """
+        # TODO: Replace with actual query from LLM usage logs/metrics table
+        from datetime import datetime, timedelta
+        import random
+        
+        # Fixed date range: Dec 1, 2025 to Feb 9, 2026 (70 days)
+        start_date = datetime(2025, 12, 1)
+        end_date = datetime(2026, 2, 9)
+        total_days = (end_date - start_date).days + 1
+        
+        data = []
+        
+        if period == 'day':
+            num_days = min(days, total_days)
+            for i in range(num_days):
+                date = start_date + timedelta(days=i)
+                data.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'api_calls': random.randint(50, 200),
+                    'tokens_used': random.randint(5000, 25000)
+                })
+        elif period == 'week':
+            num_weeks = min(days // 7, total_days // 7)
+            for i in range(num_weeks):
+                date = start_date + timedelta(weeks=i)
+                data.append({
+                    'date': date.strftime('Week %W'),
+                    'api_calls': random.randint(500, 1400),
+                    'tokens_used': random.randint(50000, 180000)
+                })
+        else:  # month
+            # Dec 2025, Jan 2026, Feb 2026
+            data.append({
+                'date': 'December 2025',
+                'api_calls': random.randint(2000, 6000),
+                'tokens_used': random.randint(200000, 750000)
+            })
+            data.append({
+                'date': 'January 2026',
+                'api_calls': random.randint(2000, 6000),
+                'tokens_used': random.randint(200000, 750000)
+            })
+            data.append({
+                'date': 'February 2026',
+                'api_calls': random.randint(1000, 3000),
+                'tokens_used': random.randint(100000, 375000)
+            })
+        
+        return data
+    
+    def search_artworks_by_tag(self, tag_query: str, limit: int = 10) -> List[Dict]:
+        """Search artworks that contain a specific tag.
+        
+        Args:
+            tag_query: Tag name to search for (partial match)
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of artwork dicts with tag information (mockup data)
+        """
+        # TODO: Replace with actual query joining artwork-tags, tags, and fabritius tables
+        import random
+        
+        # Mock data - in reality would query VIEW_ARTWORK_WITH_TAGS or join tables
+        artists = ['Peter Paul Rubens', 'Pieter Bruegel', 'René Magritte', 'James Ensor', 'Anthony van Dyck']
+        centuries = ['15th', '16th', '17th', '18th', '19th', '20th']
+        
+        results = []
+        for i in range(limit):
+            results.append({
+                'inventarisnummer': f'INV-{random.randint(1000, 9999)}',
+                'beschrijving_kunstenaar': random.choice(artists),
+                'beschrijving_titel': f'Artwork Title {i+1}',
+                'tag_name': tag_query,
+                'tag_level': random.randint(1, 3),
+                'confidence': round(random.uniform(0.7, 0.99), 2)
+            })
+        
+        return results
+    
+    def get_tag_distribution(self, page: int = 1, page_size: int = 100) -> Dict:
+        """Get tag distribution with occurrence counts (paginated).
+        
+        Args:
+            page: Page number (1-based)
+            page_size: Number of tags per page
+            
+        Returns:
+            Dict with tags, counts, total_tags, current_page, total_pages (mockup data)
+        """
+        # TODO: Replace with actual query grouping by tag and counting artworks
+        # SELECT tag_name, COUNT(*) as count FROM artwork_tags GROUP BY tag_name ORDER BY count DESC
+        import random
+        
+        # Real tag names from KMSKB (only meaningful tags)
+        all_tags = [
+            'naakt', 'man', 'vrouw', 'figuur', 'interieur', 'profiel', 'water', 'zeilboot', 
+            'officieel bezoek', 'oever', 'Schelde', 'bezoek', 'brug', 'koe', 'Maria de\' Medici', 
+            'Antwerpen', 'scene', 'omwalling', 'Sint-Walburgiskerk', 'Sint-Andrieskerk', 
+            'Vlaams Hoofd', 'dier', 'Sint-Michielsabdij', 'huis', 'stroom', 'toeschouwer', 
+            'stad', 'groet', 'toren', 'Onze-Lieve-Vrouwekathedraal', 'vlotten', 'kanon', 
+            'Isabella Clara Eugenia', 'cirkel', 'steen', 'gebed', 'kind', 'kerk', 'buste', 
+            'portret', 'hand', 'open', 'deur', 'naaktheid', 'ten voeten uit', 'samengevoegd', 
+            'kunstenaar', 'ten halven lijve', 'Carel de Moor', 'zelfportret'
+        ]
+        
+        total_tags = len(all_tags)
+        start_idx = (page - 1) * page_size
+        end_idx = min(start_idx + page_size, total_tags)
+        
+        tags = []
+        counts = []
+        
+        for i in range(start_idx, end_idx):
+            tags.append(all_tags[i])
+            # Realistic distribution: some tags very common, most rare
+            if i < 10:
+                count = random.randint(800, 2000)
+            elif i < 25:
+                count = random.randint(200, 800)
+            else:
+                count = random.randint(50, 200)
+            counts.append(count)
+        
+        return {
+            'tags': tags,
+            'counts': counts,
+            'total_tags': total_tags,
+            'current_page': page,
+            'total_pages': (total_tags + page_size - 1) // page_size
+        }
         
     def get_artworks(self, page: int = 1, items_per_page: int = 12, search_params: dict = None) -> List[Dict]:
         """Fetch artworks with pagination and optional search filters.

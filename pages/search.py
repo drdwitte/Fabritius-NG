@@ -112,6 +112,37 @@ class SearchPageController:
         results_view.clear_results(self.ui_state.results_area)
         pipeline_view.render_pipeline(self)
     
+    def load_pipeline(self):
+        """Load a saved pipeline configuration from JSON file."""
+        async def handle_upload(e):
+            try:
+                content = e.content.read().decode('utf-8')
+                self.pipeline_state.from_json(content)
+                ui.notify('Pipeline loaded successfully', type='positive')
+                pipeline_view.render_pipeline(self)
+            except Exception as ex:
+                logger.error(f"Failed to load pipeline: {ex}")
+                ui.notify(f'Failed to load pipeline: {ex}', type='negative')
+        
+        ui.upload(on_upload=handle_upload, auto_upload=True).props('accept=".json"').classes('hidden').run_method('pickFiles')
+    
+    def save_pipeline(self):
+        """Save the current pipeline configuration to JSON file."""
+        import io
+        pipeline_name = self.ui_state.pipeline_name_input.value if self.ui_state.pipeline_name_input else 'Untitled Pipeline'
+        json_string = self.pipeline_state.to_json()
+        
+        # Sanitize filename
+        safe_name = pipeline_name.replace(' ', '_').replace('/', '_').replace('\\', '_')
+        filename = f'{safe_name}.json'
+        
+        # Create bytes for download
+        bytes_io = io.BytesIO(json_string.encode('utf-8'))
+        
+        # This should trigger browser's Save As dialog
+        ui.download(bytes_io.getvalue(), filename)
+        logger.info(f"Pipeline exported: {filename}")
+    
     def render_search(self, ui_module):
         """
         Renders the main search page, including the operator library and the pipeline area.
