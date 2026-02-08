@@ -18,31 +18,11 @@ from ui_components.header import render_header
 from loguru import logger
 import routes
 
-from label_tool import (
-    LabelState,
-    get_thesaurus_names,
-    get_algorithm_names,
-    get_enabled_levels,
-    LabelService,
-    ValidationEngine,
-    VALIDATION_LEVEL_AI,
-    VALIDATION_LEVEL_HUMAN,
-    VALIDATION_LEVEL_EXPERT
-)
-from label_tool.thesaurus_terms import get_thesaurus_terms
-from label_tool.views import (
-    render_search_bar, 
-    render_level_column,
-    render_result_grid_view,
-    render_result_list_view,
-    render_view_toggle,
-    render_column_header,
-    render_algorithm_header,
-    render_action_bar,
-    render_ai_results_row,
-    render_validated_row
-)
+from label_tool import LabelState, LabelService, ValidationEngine
+from label_tool import VALIDATION_LEVEL_AI, VALIDATION_LEVEL_HUMAN, VALIDATION_LEVEL_EXPERT
 
+from label_tool.thesaurus_terms import get_thesaurus_terms
+from label_tool.views import render_search_bar, render_ai_results_row, render_validated_row
 
 class LabelPageUIState:
     """Container for label page UI element references."""
@@ -392,10 +372,10 @@ class LabelPageController:
         Promote selected artworks to the next validation level.
         
         Promotion flow:
-        - Algorithm results (AI-*) → HUMAN
-        - AI Results → HUMAN
-        - HUMAN → EXPERT
-        - EXPERT → cannot promote
+        - Algorithm results (AI-Text, AI-Image) → Level: AI
+        - Level: AI → Level: HUMAN
+        - Level: HUMAN → Level: EXPERT
+        - Level: EXPERT → cannot promote
         """
         selected_ids = self.state.get_selected_artworks(from_box_key)
         if not selected_ids:
@@ -404,10 +384,12 @@ class LabelPageController:
         logger.info(f"Promoting {len(selected_ids)} artworks from {from_box_key}")
         
         # Determine target level
-        if from_box_key.startswith('AI'):
-            to_box_key = VALIDATION_LEVEL_HUMAN
-        elif from_box_key == 'HUMAN':
-            to_box_key = VALIDATION_LEVEL_EXPERT
+        if from_box_key.startswith('AI-'):  # Algorithm boxes (AI-Text, AI-Image)
+            to_box_key = VALIDATION_LEVEL_AI  # Go to Level: AI
+        elif from_box_key == VALIDATION_LEVEL_AI:  # Level: AI
+            to_box_key = VALIDATION_LEVEL_HUMAN  # Go to Level: HUMAN
+        elif from_box_key == VALIDATION_LEVEL_HUMAN:  # Level: HUMAN
+            to_box_key = VALIDATION_LEVEL_EXPERT  # Go to Level: EXPERT
         else:
             logger.warning(f"Cannot promote from {from_box_key}")
             ui.notify('Cannot promote from EXPERT level', type='warning')
@@ -432,26 +414,43 @@ class LabelPageController:
         source_results.results = remaining_artworks
         source_results.total_count = len(remaining_artworks)
         
-        # Update target box (add promoted to the beginning)
+        # Update target box (add promoted to the beginning - prepend)
         target_results.results = promoted_artworks + target_results.results
         target_results.total_count = len(target_results.results)
+        
+        # Debug logging
+        promoted_ids = [a.get('id', a.get('inventory_number')) for a in promoted_artworks]
+        logger.info(f"Promoted artwork IDs (in order): {promoted_ids}")
+        
+        # Show full list with titles
+        full_list = []
+        for idx, artwork in enumerate(target_results.results[:10]):  # First 10
+            artwork_id = artwork.get('id', artwork.get('inventory_number'))
+            title = artwork.get('title', artwork.get('name', 'No title'))[:30]  # First 30 chars
+            full_list.append(f"{idx}: {artwork_id} - {title}")
+        
+        logger.info(f"Target box '{to_box_key}' after promotion (first 10):")
+        for item in full_list:
+            logger.info(f"  {item}")
         
         # TODO: Backend call to update validation levels
         # self.label_service.update_validation_level(selected_ids, to_box_key)
         
         ui.notify(f'Promoted {len(selected_ids)} artworks to {to_box_key}', type='positive')
-        self.deselect_all_in_box(from_box_key)
-        self._update_boxes()
+        self.state.deselect_all_artworks(from_box_key)
+        
+        # Force complete UI refresh to ensure correct order
+        ui.timer(0.1, lambda: self._update_boxes(), once=True)
     
     def demote_selected(self, from_box_key: str):
         """
         Demote selected artworks to the previous validation level.
         
         Demotion flow:
-        - EXPERT → HUMAN
-        - HUMAN → AI Results
-        - AI Results → cannot demote
-        - Algorithm results (AI-*) → cannot demote
+        - Level: EXPERT → Level: HUMAN
+        - Level: HUMAN → Level: AI
+        - Level: AI → cannot demote (cannot go back to algorithm boxes)
+        - Algorithm results (AI-Text, AI-Image) → cannot demote
         """
         selected_ids = self.state.get_selected_artworks(from_box_key)
         if not selected_ids:
@@ -460,13 +459,13 @@ class LabelPageController:
         logger.info(f"Demoting {len(selected_ids)} artworks from {from_box_key}")
         
         # Determine target level
-        if from_box_key == 'EXPERT':
-            to_box_key = VALIDATION_LEVEL_HUMAN
-        elif from_box_key == 'HUMAN':
-            to_box_key = VALIDATION_LEVEL_AI
+        if from_box_key == VALIDATION_LEVEL_EXPERT:  # Level: EXPERT
+            to_box_key = VALIDATION_LEVEL_HUMAN  # Go to Level: HUMAN
+        elif from_box_key == VALIDATION_LEVEL_HUMAN:  # Level: HUMAN
+            to_box_key = VALIDATION_LEVEL_AI  # Go to Level: AI
         else:
             logger.warning(f"Cannot demote from {from_box_key}")
-            ui.notify('Cannot demote from AI level', type='warning')
+            ui.notify('Cannot demote from AI level or algorithm boxes', type='warning')
             return
         
         # Get source and target results
@@ -505,6 +504,20 @@ class LabelPageController:
         if not selected_ids:
             return
         
+        # Show confirmation dialog
+        with ui.dialog() as dialog, ui.card():
+            ui.label('Are you sure?').classes('text-lg font-bold mb-2')
+            ui.label(f'Delete the label from {len(selected_ids)} artwork(s) forever?').classes('mb-2')
+            ui.label('(Database will be modified)').classes('text-sm text-red-600 mb-4')
+            
+            with ui.row().classes('w-full justify-end gap-2'):
+                ui.button('Cancel', on_click=dialog.close).props('outline')
+                ui.button('Delete', color='red', on_click=lambda: self._confirm_delete(box_key, selected_ids, dialog))
+        
+        dialog.open()
+    
+    def _confirm_delete(self, box_key: str, selected_ids: set, dialog):
+        """Execute deletion after confirmation."""
         logger.info(f"Deleting {len(selected_ids)} labels from {box_key}")
         
         # Get box results
@@ -534,8 +547,9 @@ class LabelPageController:
         #     return
         
         ui.notify(f'Deleted {deleted_count} labels', type='positive')
-        self.deselect_all_in_box(box_key)
+        self.state.deselect_all_artworks(box_key)
         self._update_boxes()
+        dialog.close()
     
     def hide_selected(self, box_key: str):
         """
