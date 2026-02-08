@@ -11,9 +11,9 @@ from typing import List, Dict, Any
 from loguru import logger
 
 from .state import LabelState, ValidationResults
+from search_pipeline.operators import execute_semantic_search
+from config import settings
 from .mock_data import (
-    TEXT_PAINTINGS, 
-    MULTIMODAL_PAINTINGS,
     AI_VALIDATED_PAINTINGS, 
     HUMAN_VALIDATED_PAINTINGS, 
     EXPERT_VALIDATED_PAINTINGS
@@ -131,25 +131,47 @@ class ValidationEngine:
         Args:
             label_name: Name of the label
             label_definition: Definition of the label
-            algorithm_name: Algorithm to run (Text, Multimodal, etc.)
+            algorithm_name: Algorithm to run (Text, Image, etc.)
             
         Returns:
             List of matching artworks with metadata
         """
-        # TODO: Implement actual algorithm execution
-        # This should:
-        # 1. Load the appropriate model (if needed)
-        # 2. Compute embeddings/similarity scores
-        # 3. Query database for top matches
-        # 4. Return ranked results
+        # Build search query from label name and definition
+        if label_definition:
+            query_text = f"{label_name}: {label_definition}"
+        else:
+            query_text = label_name
         
-        # Use mock data from mock_data.py (15 paintings per algorithm)
-        paintings = {
-            "Text": [dict(p, algorithm=algorithm_name) for p in TEXT_PAINTINGS],
-            "Multimodal": [dict(p, algorithm=algorithm_name) for p in MULTIMODAL_PAINTINGS],
-        }
+        logger.info(f"Running {algorithm_name} algorithm with query: '{query_text}'")
         
-        return paintings.get(algorithm_name, [])
+        # Multimodal uses different engine - use mock data for now
+        if algorithm_name.lower() in ['multimodal', 'image']:
+            logger.info(f"{algorithm_name} algorithm: Using mock data (multimodal engine not yet implemented)")
+            from .mock_data import MULTIMODAL_PAINTINGS
+            return [dict(p, algorithm=algorithm_name) for p in MULTIMODAL_PAINTINGS]
+        
+        # Text embeddings: use vector search
+        try:
+            # Execute semantic search using shared operator
+            params = {
+                'query_text': query_text,
+                'result_mode': 'top_n',
+                'n_results': 50  # Get top 50 results per algorithm
+            }
+            
+            preview_results, total_count = execute_semantic_search(params)
+            
+            logger.info(f"{algorithm_name} algorithm: {total_count} results found, showing {len(preview_results)}")
+            
+            # Add algorithm metadata to each result
+            for result in preview_results:
+                result['algorithm'] = algorithm_name
+            
+            return preview_results
+            
+        except Exception as e:
+            logger.error(f"Error executing {algorithm_name} algorithm: {e}")
+            raise
     
     async def _fetch_validated_data(
         self,

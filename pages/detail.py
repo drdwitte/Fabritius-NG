@@ -9,19 +9,30 @@ class DetailPageState:
     """
     Container for detail page state.
     
-    Encapsulates artwork data to avoid global variables.
+    Encapsulates artwork data and source page to avoid global variables.
     This makes the code more maintainable, easier to debug, and thread-safe.
     """
     def __init__(self) -> None:
         self.current_artwork = None
+        self.source_page = None  # Track where user came from
     
-    def set_artwork(self, artwork_data: dict) -> None:
-        """Store artwork data for display."""
+    def set_artwork(self, artwork_data: dict, source: str = None) -> None:
+        """Store artwork data for display.
+        
+        Args:
+            artwork_data: Dictionary with artwork information
+            source: Source page ('search' or 'label')
+        """
         self.current_artwork = artwork_data
+        self.source_page = source
     
     def get_artwork(self) -> dict:
         """Retrieve current artwork data."""
         return self.current_artwork
+    
+    def get_source(self) -> str:
+        """Retrieve source page."""
+        return self.source_page
 
 # Create single state instance
 page_state = DetailPageState()
@@ -33,10 +44,11 @@ def render_detail(ui_instance):
     """
     # Get artwork data from storage
     artwork_data = page_state.get_artwork()
+    source_page = page_state.get_source()
     
     if not artwork_data:
         ui.label('No artwork selected').classes('text-xl text-gray-600')
-        ui.button('Back to Search', icon='arrow_back', on_click=lambda: ui.navigate.to(routes.ROUTE_HOME)).props('flat')
+        ui.button('Back to Search', icon='arrow_back', on_click=lambda: ui.navigate.to(routes.ROUTE_SEARCH)).props('flat')
         return
     
     # Extract artwork data
@@ -44,7 +56,7 @@ def render_detail(ui_instance):
     title = artwork_data.get('title', artwork_data.get('beschrijving_titel', 'Untitled'))
     artist = artwork_data.get('artist', artwork_data.get('beschrijving_kunstenaar', 'Unknown Artist'))
     year = artwork_data.get('year', artwork_data.get('beschrijving_datering', 'N/A'))
-    image_path = artwork_data.get('image', artwork_data.get('imageOpacLink', ''))
+    image_path = artwork_data.get('image_url', artwork_data.get('image', artwork_data.get('imageOpacLink', '')))
     
     # Construct full image URL if needed
     if image_path and not image_path.startswith('http'):
@@ -52,8 +64,17 @@ def render_detail(ui_instance):
     else:
         image_url = image_path
     
-    # Back button
-    ui.button('← Back to Search', on_click=lambda: ui.navigate.to(routes.ROUTE_HOME)).props('flat').classes(f'mb-4 text-[{settings.primary_color}]')
+    # Back buttons - show relevant button based on source
+    with ui.row().classes('gap-2 mb-4'):
+        if source_page == 'search':
+            ui.button('← Back to Search', on_click=lambda: ui.navigate.to(routes.ROUTE_SEARCH)).props('flat').classes(f'text-[{settings.primary_color}]')
+        elif source_page == 'label':
+            # Navigate back to label page - state is cached in app.storage.client
+            ui.button('← Back to Label Tool', on_click=lambda: ui.navigate.to(routes.ROUTE_LABEL)).props('flat').classes(f'text-[{settings.primary_color}]')
+        else:
+            # Show both if source unknown
+            ui.button('← Back to Search', on_click=lambda: ui.navigate.to(routes.ROUTE_SEARCH)).props('flat').classes(f'text-[{settings.primary_color}]')
+            ui.button('← Back to Label Tool', on_click=lambda: ui.navigate.to(routes.ROUTE_LABEL)).props('flat').classes(f'text-[{settings.primary_color}]')
     
     # Main content: image + metadata side by side
     with ui.row().classes('w-full gap-6'):

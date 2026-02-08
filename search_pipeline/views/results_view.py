@@ -20,8 +20,8 @@ def show_artwork_detail(artwork_data):
     """
     logger.info(f"Navigating to detail view for artwork: {artwork_data.get('inventory')}")
     
-    # Store artwork data in detail module's page_state
-    detail.page_state.set_artwork(artwork_data)
+    # Store artwork data in detail module's page_state with source
+    detail.page_state.set_artwork(artwork_data, source='search')
     
     # Navigate to detail route
     ui.navigate.to(routes.ROUTE_DETAIL)
@@ -165,7 +165,7 @@ def render_grid_view(results):
             with ui.column().classes('gap-2 min-w-0'):
                 # Image container with fixed aspect ratio - clickable
                 with ui.card().classes('w-full p-0 overflow-hidden cursor-pointer hover:shadow-xl transition').style('aspect-ratio: 1/1;'):
-                    img = ui.image(result['image']).classes('w-full h-full object-cover')
+                    img = ui.image(result.get('image_url', result.get('image', ''))).classes('w-full h-full object-cover')
                     img.on('click', lambda r=result: show_artwork_detail(r))
                 
                 # Metadata below image with truncation
@@ -192,7 +192,7 @@ def render_list_view(results):
                 
                 with card_row:
                     # Square thumbnail (fixed size)
-                    ui.image(result['image']).classes('w-24 h-24 object-cover rounded')
+                    ui.image(result.get('image_url', result.get('image', ''))).classes('w-24 h-24 object-cover rounded')
                     
                     # Metadata (always visible)
                     with ui.column().classes('flex-1'):

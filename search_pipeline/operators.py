@@ -122,7 +122,7 @@ def execute_semantic_search(params: dict) -> tuple:
                 'artist': artwork.get('beschrijving_kunstenaar', 'Unknown Artist'),
                 'year': artwork.get('beschrijving_datering', 'N/A'),
                 'inventory': artwork.get('inventarisnummer', 'N/A'),
-                'image': image_url
+                'image_url': image_url  # Use image_url for consistency
             })
         
         logger.info(f"Semantic Search completed: {len(formatted_results)} preview results, {total_count} total results")
@@ -227,7 +227,7 @@ def execute_metadata_filter(params: dict) -> tuple:
                 'artist': artwork.get('beschrijving_kunstenaar', 'Unknown Artist'),
                 'year': artwork.get('beschrijving_datering', 'N/A'),
                 'inventory': artwork.get('inventarisnummer', 'N/A'),
-                'image': image_url
+                'image_url': image_url  # Changed from 'image' for consistency
             })
         
         logger.info(f"Metadata Filter completed: {len(formatted_results)} preview results, {total_count} total results")
@@ -374,7 +374,7 @@ def execute_similarity_search(params: dict) -> tuple:
                 'artist': artwork.get('beschrijving_kunstenaar', 'Unknown Artist'),
                 'year': artwork.get('beschrijving_datering', 'N/A'),
                 'inventory': artwork.get('inventarisnummer', 'N/A'),
-                'image': image_url
+                'image_url': image_url  # Changed from 'image' for consistency
             })
         
         logger.info(f"Similarity Search completed: {len(formatted_results)} preview results, {total_count} total results")

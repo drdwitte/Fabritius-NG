@@ -13,6 +13,7 @@ Responsibilities:
 - Coordinate between views and state
 """
 
+# Third-party libraries
 from nicegui import ui, app
 from ui_components.header import render_header
 from loguru import logger
@@ -23,6 +24,10 @@ from label_tool import VALIDATION_LEVEL_AI, VALIDATION_LEVEL_HUMAN, VALIDATION_L
 
 from label_tool.thesaurus_terms import get_thesaurus_terms
 from label_tool.views import render_search_bar, render_ai_results_row, render_validated_row
+
+# Module-level storage: Safe because each tab gets unique ID from browser storage
+# Memory persists during app runtime (acceptable tradeoff for state preservation)
+_label_controllers = {}
 
 class LabelPageUIState:
     """Container for label page UI element references."""
@@ -631,11 +636,24 @@ def label_page():
     """Label validation page."""
     logger.info("Label validation page loaded")
     
-    # Get or create controller for this user session
-    if 'label_controller' not in app.storage.client:
-        app.storage.client['label_controller'] = LabelPageController()
+    # Get or create unique tab ID from browser storage (persists across navigations)
+    if 'tab_id' not in app.storage.browser:
+        import uuid
+        app.storage.browser['tab_id'] = str(uuid.uuid4())
     
-    controller = app.storage.client['label_controller']
+    tab_id = app.storage.browser['tab_id']
+    
+    # Get or create controller for this tab
+    if tab_id not in _label_controllers:
+        logger.info(f"Creating new LabelPageController for tab {tab_id[:8]}")
+        _label_controllers[tab_id] = LabelPageController()
+    else:
+        logger.info(f"Reusing LabelPageController for tab {tab_id[:8]}")
+    
+    controller = _label_controllers[tab_id]
+    
+    # Log current state
+    logger.info(f"State - Label: {controller.state.label_name}, Algorithms: {controller.state.selected_algorithms}, Results: {len(controller.state.results_per_box)}")
     
     # Header
     render_header()

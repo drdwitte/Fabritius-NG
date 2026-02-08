@@ -55,6 +55,10 @@ from search_pipeline.operator_registry import OperatorNames
 # Search pipeline - components
 from search_pipeline.views import operator_library, results_view, pipeline_view
 
+# Module-level storage: Safe because each tab gets unique ID from browser storage
+# Memory persists during app runtime (acceptable tradeoff for state preservation)
+_search_controllers = {}
+
 
 class SearchPageUIState:
     """Container for search page UI element references."""
@@ -162,14 +166,21 @@ def page():
     """Search pipeline page - main application page."""
     logger.info("Loading Search page")
     
-    # Create controller per client session (in-memory, not persisted)
-    # app.storage.client is session-based and doesn't require JSON serialization
-    # This ensures each user/browser tab has their own pipeline state
-    if 'search_controller' not in app.storage.client:
-        logger.info("Creating new SearchPageController for client session")
-        app.storage.client['search_controller'] = SearchPageController()
+    # Get or create unique tab ID from browser storage (persists across navigations)
+    if 'tab_id' not in app.storage.browser:
+        import uuid
+        app.storage.browser['tab_id'] = str(uuid.uuid4())
     
-    controller = app.storage.client['search_controller']
+    tab_id = app.storage.browser['tab_id']
+    
+    # Get or create controller for this tab
+    if tab_id not in _search_controllers:
+        logger.info(f"Creating new SearchPageController for tab {tab_id[:8]}")
+        _search_controllers[tab_id] = SearchPageController()
+    else:
+        logger.info(f"Reusing SearchPageController for tab {tab_id[:8]}")
+    
+    controller = _search_controllers[tab_id]
     
     render_header()
     controller.render_search(ui)

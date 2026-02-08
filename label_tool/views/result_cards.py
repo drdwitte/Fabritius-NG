@@ -6,6 +6,25 @@ Renders artworks in gallery or list view format.
 
 from nicegui import ui
 from typing import List, Dict, Any, Callable, Optional
+from loguru import logger
+import routes
+from pages import detail
+
+
+def show_artwork_detail(artwork_data):
+    """
+    Navigate to detail view with artwork data.
+    
+    Args:
+        artwork_data: Dictionary containing artwork information
+    """
+    logger.info(f"Navigating to detail view for artwork: {artwork_data.get('id', artwork_data.get('inventory'))}")
+    
+    # Store artwork data in detail module's page_state with source
+    detail.page_state.set_artwork(artwork_data, source='label')
+    
+    # Navigate to detail route
+    ui.navigate.to(routes.ROUTE_DETAIL)
 
 
 def render_result_grid_view(
@@ -43,13 +62,18 @@ def render_result_grid_view(
             # Gallery tile with image and metadata overlay
             # Use fixed min-height to ensure cards render properly
             border_class = 'ring-4 ring-blue-500' if is_selected else ''
-            with ui.card().classes(f'w-full p-0 overflow-hidden cursor-pointer hover:shadow-xl transition relative {border_class}').style('aspect-ratio: 1/1; min-height: 200px;'):
+            card = ui.card().classes(f'w-full p-0 overflow-hidden cursor-pointer hover:shadow-xl transition relative {border_class}').style('aspect-ratio: 1/1; min-height: 200px;')
+            
+            # Click on card (but not on checkbox) goes to detail
+            card.on('click', lambda r=result: show_artwork_detail(r))
+            
+            with card:
                 # Image (full card background)
                 ui.image(result.get('image_url', '')).classes('w-full h-full object-cover absolute inset-0').style('min-height: 200px;')
                 
-                # Selection checkbox (top-left)
+                # Selection checkbox (top-left) - stop propagation to prevent detail navigation
                 if on_toggle_selection and artwork_id:
-                    with ui.element('div').classes('absolute top-2 left-2 z-10'):
+                    with ui.element('div').classes('absolute top-2 left-2 z-10').on('click.stop', lambda: None):
                         ui.checkbox(value=is_selected, on_change=lambda e, aid=artwork_id: on_toggle_selection(aid)).classes('bg-white rounded shadow-lg').props('size=lg')
                 
                 # Metadata overlay (bottom of card, semi-transparent dark background)
@@ -95,11 +119,17 @@ def render_result_list_view(
             
             # List item card with thumbnail and metadata side by side
             border_class = 'ring-2 ring-blue-500' if is_selected else ''
-            with ui.card().classes(f'w-full hover:shadow-lg transition cursor-pointer {border_class}'):
+            card = ui.card().classes(f'w-full hover:shadow-lg transition cursor-pointer {border_class}')
+            
+            # Click on card goes to detail
+            card.on('click', lambda r=result: show_artwork_detail(r))
+            
+            with card:
                 with ui.row().classes('w-full items-center gap-4 p-2'):
-                    # Selection checkbox
+                    # Selection checkbox - stop propagation to prevent detail navigation
                     if on_toggle_selection and artwork_id:
-                        ui.checkbox(value=is_selected, on_change=lambda e, aid=artwork_id: on_toggle_selection(aid)).classes('flex-shrink-0').props('size=md')
+                        with ui.element('div').on('click.stop', lambda: None):
+                            ui.checkbox(value=is_selected, on_change=lambda e, aid=artwork_id: on_toggle_selection(aid)).classes('flex-shrink-0').props('size=md')
                     
                     # Square thumbnail (fixed size)
                     ui.image(result.get('image_url', '')).classes('w-24 h-24 object-cover rounded')
