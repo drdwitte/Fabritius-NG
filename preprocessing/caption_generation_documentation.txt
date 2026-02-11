@@ -1,0 +1,140 @@
+================================================================================
+CAPTION GENERATIE FUNCTIONALITEIT - FABRITIUS PROJECT
+================================================================================
+
+1. FUNCTIE NAAM EN LOCATIE
+---------------------------
+Hoofdfunctie: generate_gpt_vision_caption()
+Locatie: preprocessing/generate_captions.py (regel 115-139)
+Wrapper: update_artwork_captions() - voor batch processing
+
+
+2. INPUT FORMAAT
+----------------
+De functie accepteert IMAGE URL's (geen base64 encoding):
+
+    def generate_gpt_vision_caption(image_url: str) -> str
+
+Voorbeeld URL constructie:
+    image_url = f"http://193.190.214.119{artwork['imageOpacLink']}"
+
+Alternatieve methode voor lokale files:
+    - create_llm_message_with_image() in fabritius/backend/llms.py
+    - Gebruikt encode_image(image_path) voor base64 conversie
+
+
+3. PROMPT TEKST
+---------------
+Prompt variabele: FULL_PROMPT_VISION
+Locatie: fabritius/data_processing/prompts.py (regel 6-101)
+Lengte: ~300 regels, zeer gedetailleerd
+
+Prompt structuur (8 secties):
+    1. Abstract (General Overview) - 200-300 woorden samenvatting
+    2. Artist and Date - kunstenaar, datum, stijl
+    3. Subjects in the Painting - alle figuren gedetailleerd
+    4. Objects and Their Roles - alle objecten en symboliek
+    5. Interactions Between Subjects and Objects
+    6. Groups and Group Dynamics
+    7. Abstract Concepts Represented
+    8. Iconclass Terms - iconografische classificatie
+
+
+4. OUTPUT
+---------
+De functie geeft alleen CAPTION TEXT terug (string of None):
+    return response.output_text
+
+Output wordt opgeslagen in database kolom: gpt_vision_caption
+
+
+5. MODEL
+--------
+Standaard model: gpt-4o-mini
+Gedefinieerd in: fabritius/backend/llms.py (regel 34)
+
+    DEFAULT_MODEL = "gpt-4o-mini"
+
+
+6. VOLLEDIGE WORKFLOW
+---------------------
+```python
+from fabritius.backend.llms import LLMClient
+from fabritius.data_processing.prompts import FULL_PROMPT_VISION
+
+def generate_gpt_vision_caption(image_url: str) -> str:
+    # 1. Create LLM client
+    llm = LLMClient()
+    
+    # 2. Create message with image URL and prompt
+    prompt_obj = llm.create_llm_message_with_image_url(
+        msg=FULL_PROMPT_VISION,
+        image_url=image_url
+    )
+    
+    # 3. Get response from GPT Vision
+    response = llm.prompt_llm(prompt_obj)
+    
+    # 4. Extract and return text
+    if response and response.output_text:
+        return response.output_text
+    else:
+        return None
+```
+
+
+7. BATCH PROCESSING VOORBEELD
+------------------------------
+```python
+from fabritius.database.supabase_client import SupabaseClient
+
+# Initialize database
+db = SupabaseClient()
+
+# Get uncaptioned artworks
+artworks = get_n_uncaptioned_artworks(db, n=5, offset=0)
+
+# Process each artwork
+for artwork in artworks:
+    image_url = f"http://193.190.214.119{artwork['imageOpacLink']}"
+    
+    # Generate caption
+    caption = generate_gpt_vision_caption(image_url)
+    
+    # Update database
+    if caption:
+        update_artwork_caption(
+            db=db,
+            inventory_number=artwork['inventarisnummer'],
+            caption=caption
+        )
+```
+
+
+8. BELANGRIJKE KLASSEN
+-----------------------
+LLMClient (fabritius/backend/llms.py):
+    - Methodes:
+        - prompt_llm() - stuurt message naar OpenAI API
+        - create_llm_message_with_image_url() - voor URL-based images
+        - create_llm_message_with_image() - voor base64-encoded images
+        - get_embedding() - voor text embeddings
+    
+    - Standaard instellingen:
+        - DEFAULT_MODEL = "gpt-4o-mini"
+        - DEFAULT_EMBEDDING_MODEL = "text-embedding-ada-002"
+
+
+9. COMMAND LINE GEBRUIK
+------------------------
+Het script kan direct worden uitgevoerd:
+
+    python preprocessing/generate_captions.py -n 10 -o 0
+
+Parameters:
+    -n, --number: Aantal artworks te verwerken (default: 5)
+    -o, --offset: Skip eerste N artworks (default: 0)
+    --stats: Toon alleen statistieken zonder te verwerken
+
+
+================================================================================

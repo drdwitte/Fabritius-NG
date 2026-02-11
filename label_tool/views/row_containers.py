@@ -71,11 +71,11 @@ def render_ai_results_row(controller):
                                 results=algo_results,
                                 state=state,
                                 on_close=lambda a=algo_name: controller.close_algorithm(a),
-                                on_toggle_selection=lambda aid, bk=algo_box_key: (controller.state.toggle_artwork_selection(bk, aid), controller._update_boxes()),
+                                on_toggle_selection=lambda aid, bk=algo_box_key: (controller.state.toggle_artwork_selection(bk, aid), controller.update_boxes()),
                                 on_promote=lambda bk=algo_box_key: controller.promote_selected(bk),
                                 on_delete=lambda bk=algo_box_key: controller.delete_selected(bk),
                                 on_hide=lambda bk=algo_box_key: controller.hide_selected(bk),
-                                on_toggle_view=lambda vm: (setattr(controller.state, 'view_mode', vm), controller._update_boxes())
+                                on_toggle_view=lambda vm: (setattr(controller.state, 'view_mode', vm), controller.update_boxes())
                             )
 
 
@@ -111,12 +111,12 @@ def render_validated_row(
             show_label=False,
             subtitle=subtitle,
             on_toggle_collapse=lambda: controller.toggle_box(box_key),
-            on_select_all=lambda: (controller.state.select_all_artworks(box_key), controller._update_boxes()),
-            on_deselect_all=lambda: (controller.state.deselect_all_artworks(box_key), controller._update_boxes()),
-            on_toggle_selection=lambda aid: (controller.state.toggle_artwork_selection(box_key, aid), controller._update_boxes()),
+            on_select_all=lambda: (controller.state.select_all_artworks(box_key), controller.update_boxes()),
+            on_deselect_all=lambda: (controller.state.deselect_all_artworks(box_key), controller.update_boxes()),
+            on_toggle_selection=lambda aid: (controller.state.toggle_artwork_selection(box_key, aid), controller.update_boxes()),
             on_promote=lambda: controller.promote_selected(box_key),
             on_demote=lambda: controller.demote_selected(box_key),
             on_delete=lambda: controller.delete_selected(box_key),
             on_hide=lambda: controller.hide_selected(box_key),
-            on_toggle_view=lambda vm: (setattr(controller.state, 'view_mode', vm), controller._update_boxes())
+            on_toggle_view=lambda vm: (setattr(controller.state, 'view_mode', vm), controller.update_boxes())
         )

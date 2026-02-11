@@ -1,0 +1,79 @@
+<record>
+<recordLanguage>eng</recordLanguage>
+<recordID>5936</recordID>
+<DatabaseId>Fabritius</DatabaseId>
+<LinkToVubis>http://193.190.214.119/fabritiusweb/LinkToVubis.csp?DataBib=2:5936&amp;Language=eng</LinkToVubis>
+<objectWork><creatorDescription>Herman Saftleven III</creatorDescription>
+<termClassification>painting (Dept. Ancient Art)</termClassification>
+<workID>2834</workID>
+<titleText>Interior of a Barn</titleText>
+<objectWorkType>painting (panel)</objectWorkType>
+<measurementsDescription>41 x 57,7</measurementsDescription>
+<termMaterialsTech>wood</termMaterialsTech>
+<creationDateDescription>1634</creationDateDescription>
+<provenanceDescription>Acquired in the sale Christophe van Loo (Gent), Paris, Hotel Drouot, 25.05.1881, No. 27</provenanceDescription>
+</objectWork>
+<currentLocation><roomName>Old Masters Museum : Room 04 (Paccar) Dutch School</roomName>
+<buildingName>Balat</buildingName>
+<reserveName>82</reserveName>
+</currentLocation>
+<relatedTextualReferences><sourceAuthID>Bib:3:96</sourceAuthID>
+<sourceTitle>Le musée caché : A la découverte des réserves : (Exposition) : Bruxelles, Musées royaux des Beaux-Arts de Belgique, 30.09 1994 - 18.12 1994 = Het verborgen museum : Ontdekkingstocht in de reserves : (Tentoonstelling) : Brussel, Koninklijke Musea voor Schone Kunsten van België, 30.09 1994 - 18.12 1994 </sourceTitle>
+<sourcePublisher>MRBAB / KMSKB</sourcePublisher>
+<sourcePublicationPlace>Bruxelles / Brussel</sourcePublicationPlace>
+<sourcePublicationYear>1994</sourcePublicationYear>
+<sourceCallNumber>III 17916</sourceCallNumber>
+</relatedTextualReferences>
+<creator><creatorAuthID>Auth:509:3788</creatorAuthID>
+<birthDateCreator>1609</birthDateCreator>
+<deathDateCreator>1685</deathDateCreator>
+</creator>
+<creator><creatorAuthID>Auth:509:1070</creatorAuthID>
+<birthDateCreator>1601</birthDateCreator>
+<deathDateCreator>1700</deathDateCreator>
+</creator>
+<measurements><measurementsType>height with frame</measurementsType>
+<measurementsValue>60,5</measurementsValue>
+<measurementsUnit>cm</measurementsUnit>
+<measurementsDates>27.04.2005</measurementsDates>
+</measurements>
+<measurements><measurementsType>width with frame</measurementsType>
+<measurementsValue>76,5</measurementsValue>
+<measurementsUnit>cm</measurementsUnit>
+<measurementsDates>27.04.2005</measurementsDates>
+</measurements>
+<measurements><measurementsType>depth with frame</measurementsType>
+<measurementsValue>7</measurementsValue>
+<measurementsUnit>cm</measurementsUnit>
+<measurementsDates>27.04.2005</measurementsDates>
+</measurements>
+<conservationTreatments><treatmentAgentName>PHAM, T.-N.</treatmentAgentName>
+<treatmentCost>15.665,- BEF</treatmentCost>
+</conservationTreatments>
+<conservationTreatments><treatmentAgentName>DUBOIS, H.</treatmentAgentName>
+</conservationTreatments>
+<creation><earliestDate>1629</earliestDate>
+<latestDate>1639</latestDate>
+</creation>
+<owner><ownerName>Hôtel Drouot</ownerName>
+<transferType>auction</transferType>
+</owner>
+<owner><ownerName>814</ownerName>
+</owner>
+<formalDescription><physicalAppearanceDescription>Oil on oak panel</physicalAppearanceDescription>
+</formalDescription>
+<relatedVisualDocumentation><imageType>photo KIK-IRPA</imageType>
+<imageID>117 771 B</imageID>
+</relatedVisualDocumentation>
+<relatedVisualDocumentation><imageType>digital JPG</imageType>
+<imageDate>2005</imageDate>
+<imageColor>colour photograph</imageColor>
+<imageCopyright>Royal Museums of Fine Arts of Belgium, Brussels / photo : J. Geleyns - Art Photography</imageCopyright>
+<imageNumberOpacDisplay>ill.1</imageNumberOpacDisplay>
+<imageID>n. 2834</imageID>
+<imageOpacLink>/art-foto/old/Internet/Saftleven-2834-L.jpg</imageOpacLink>
+<imageIntranetLink>/art-foto/old/Intranet/Saftleven-2834-H.jpg</imageIntranetLink>
+</relatedVisualDocumentation>
+<repositoryNumberVariant><repositoryNumberNoSpaces>2834</repositoryNumberNoSpaces>
+</repositoryNumberVariant>
+</record>

@@ -32,10 +32,10 @@ _label_controllers = {}
 class LabelPageUIState:
     """Container for label page UI element references."""
     def __init__(self):
-        self.search_container = None
-        self.definition_container = None
-        self.boxes_area = None
-
+        
+        self.search_container = None # Top section: thesaurus selector, label search bar, and algorithm checkboxes
+        self.definition_container = None # Middle section: label definition display (shown when ' new label' is clicked)
+        self.boxes_area = None # Bottom section: validation level boxes (AI, Human, Expert) with result cards
 
 class LabelPageController:
     """
@@ -47,9 +47,10 @@ class LabelPageController:
     """
     
     def __init__(self):
-        self.ui_state = LabelPageUIState()
-        self.state = LabelState()
-        self.validation_engine = ValidationEngine()
+        
+        self.ui_state = LabelPageUIState() #manages UI elements
+        self.state = LabelState() # Execution logic state: label data, selected algorithms, validation result
+        self.validation_engine = ValidationEngine() #engine to run validation across three levels of validation
         
         # Load initial thesaurus terms
         self._load_thesaurus_terms()
@@ -78,7 +79,7 @@ class LabelPageController:
         # Re-render UI
         self.update_search_bar()
         self.update_definition()
-        self._update_boxes()
+        self.update_boxes()
     
     def _load_thesaurus_terms(self):
         """Load terms from selected thesaurus for autocomplete."""
@@ -101,7 +102,7 @@ class LabelPageController:
             # Re-render UI
             self.update_search_bar()
             self.update_definition()
-            self._update_boxes()
+            self.update_boxes()
     
     # ========== Algorithm Actions ==========
     
@@ -132,7 +133,7 @@ class LabelPageController:
         ui.notify(f'Selected algorithms: {", ".join(self.state.selected_algorithms) if self.state.selected_algorithms else "None"}')
         
         # Re-render boxes
-        self._update_boxes()
+        self.update_boxes()
     
     def toggle_level(self, level: str, is_checked: bool):
         """Toggle a validation level on/off."""
@@ -149,7 +150,7 @@ class LabelPageController:
         ui.notify(f'Selected levels: {", ".join(self.state.selected_levels) if self.state.selected_levels else "None"}')
         
         # Re-render boxes
-        self._update_boxes()
+        self.update_boxes()
     
     # ========== Label Actions ==========
     
@@ -213,7 +214,7 @@ class LabelPageController:
         # Re-render UI
         self.update_search_bar()
         self.update_definition()
-        self._update_boxes()
+        self.update_boxes()
     
     # ========== Search Actions ==========
     
@@ -241,7 +242,7 @@ class LabelPageController:
             self.state.search_error = None
             
             # Re-render boxes to show loading state
-            self._update_boxes()
+            self.update_boxes()
             
             # Notify which queries are being executed
             if self.state.selected_algorithms:
@@ -275,7 +276,7 @@ class LabelPageController:
             ui.notify('Validation complete')
             
             # Re-render boxes with results
-            self._update_boxes()
+            self.update_boxes()
             
         except Exception as e:
             logger.error(f"Search failed: {str(e)}")
@@ -284,9 +285,9 @@ class LabelPageController:
             ui.notify(f'Search failed: {str(e)}', type='negative')
             
             # Re-render boxes to show error state
-            self._update_boxes()
+            self.update_boxes()
     
-    def _update_boxes(self):
+    def update_boxes(self):
         """Re-render all result boxes."""
         if not self.ui_state.boxes_area:
             return
@@ -358,19 +359,19 @@ class LabelPageController:
         logger.info(f"Toggled selection for {artwork_id} in {box_key}")
         
         # Re-render boxes to update checkboxes and show/hide action bar
-        self._update_boxes()
+        self.update_boxes()
     
     def select_all_in_box(self, box_key: str):
         """Select all artworks in a box."""
         self.state.select_all_artworks(box_key)
         logger.info(f"Selected all artworks in {box_key}")
-        self._update_boxes()
+        self.update_boxes()
     
     def deselect_all_in_box(self, box_key: str):
         """Deselect all artworks in a box."""
         self.state.deselect_all_artworks(box_key)
         logger.info(f"Deselected all artworks in {box_key}")
-        self._update_boxes()
+        self.update_boxes()
     
     def promote_selected(self, from_box_key: str):
         """
@@ -445,7 +446,7 @@ class LabelPageController:
         self.state.deselect_all_artworks(from_box_key)
         
         # Force complete UI refresh to ensure correct order
-        ui.timer(0.1, lambda: self._update_boxes(), once=True)
+        ui.timer(0.1, lambda: self.update_boxes(), once=True)
     
     def demote_selected(self, from_box_key: str):
         """
@@ -501,7 +502,7 @@ class LabelPageController:
         
         ui.notify(f'Demoted {len(selected_ids)} artworks to {to_box_key}', type='positive')
         self.deselect_all_in_box(from_box_key)
-        self._update_boxes()
+        self.update_boxes()
     
     def delete_selected(self, box_key: str):
         """Delete labels for selected artworks."""
@@ -553,7 +554,7 @@ class LabelPageController:
         
         ui.notify(f'Deleted {deleted_count} labels', type='positive')
         self.state.deselect_all_artworks(box_key)
-        self._update_boxes()
+        self.update_boxes()
         dialog.close()
     
     def hide_selected(self, box_key: str):
@@ -597,7 +598,7 @@ class LabelPageController:
         
         ui.notify(f'Hidden {len(selected_ids)} artworks', type='positive')
         self.deselect_all_in_box(box_key)
-        self._update_boxes()
+        self.update_boxes()
     
     def close_algorithm(self, algo_name: str):
         """Close (remove) an algorithm from the selected list."""
@@ -607,7 +608,7 @@ class LabelPageController:
             
             # Re-render search bar to update checkboxes and boxes
             self.update_search_bar()
-            self._update_boxes()
+            self.update_boxes()
     
     def toggle_box(self, box_key: str):
         """Toggle a box open/closed and sync with algorithms."""
@@ -618,7 +619,7 @@ class LabelPageController:
         
         # Re-render search bar to update checkboxes and boxes
         self.update_search_bar()
-        self._update_boxes()
+        self.update_boxes()
     
     def toggle_view(self, view_mode: str):
         """Toggle between grid and list view."""
@@ -626,7 +627,7 @@ class LabelPageController:
         logger.info(f"View mode changed to: {view_mode}")
         
         # Re-render boxes with new view
-        self._update_boxes()
+        self.update_boxes()
 
 
 # ========== Page Definition ==========
@@ -671,7 +672,7 @@ def label_page():
         
         # Validation level boxes section
         controller.ui_state.boxes_area = ui.column().classes('w-full')
-        controller._update_boxes()
+        controller.update_boxes()
 
 
 
