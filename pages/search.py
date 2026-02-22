@@ -39,6 +39,10 @@ User Flow Example:
 All actual logic lives in search_pipeline package!
 """
 
+# Standard library
+import io
+import uuid
+
 # Third-party libraries
 from nicegui import ui, app
 from loguru import logger
@@ -128,7 +132,6 @@ class SearchPageController:
     
     def save_pipeline(self):
         """Save the current pipeline configuration to JSON file."""
-        import io
         pipeline_name = self.ui_state.pipeline_name_input.value if self.ui_state.pipeline_name_input else 'Untitled Pipeline'
         json_string = self.pipeline_state.to_json()
         
@@ -197,14 +200,14 @@ def page():
     """Search pipeline page - main application page."""
     logger.info("Loading Search page")
     
-    # Get or create unique tab ID from browser storage (persists across navigations)
+    # Tab-specific state: Each tab gets unique controller to isolate pipelines and preserve state across navigation
+    # Can't use app.storage.tab because controller contains non-serializable UI references and methods
     if 'tab_id' not in app.storage.browser:
-        import uuid
         app.storage.browser['tab_id'] = str(uuid.uuid4())
     
     tab_id = app.storage.browser['tab_id']
     
-    # Get or create controller for this tab
+    # Get or create controller for this tab (first visit = new, return visit = reuse)
     if tab_id not in _search_controllers:
         logger.info(f"Creating new SearchPageController for tab {tab_id[:8]}")
         _search_controllers[tab_id] = SearchPageController()

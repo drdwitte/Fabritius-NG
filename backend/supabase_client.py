@@ -503,7 +503,33 @@ class SupabaseClient:
         except Exception as e:
             logger.error(f"Error in vector search: {e}")
             return []
+    
+    def recommend_tags_for_artwork(self, artwork_id: str, limit: int = 10) -> list:
+        """Get recommended iconographic tags for an artwork based on embedding similarity.
         
+        Args:
+            artwork_id: Inventarisnummer of the artwork
+            limit: Maximum number of tags to recommend (default: 10)
+            
+        Returns:
+            List of dictionaries with keys: tag_id, label, similarity, description
+            Example: [
+                {'tag_id': 123, 'label': 'man', 'similarity': 0.85, 'description': None},
+                {'tag_id': 456, 'label': 'vrouw', 'similarity': 0.82, 'description': None}
+            ]
+        """
+        try:
+            # Call stored procedure through RPC
+            response = self.client.rpc('recommend_iconographic_tags', {
+                'artwork_id_param': artwork_id,
+                'match_count': limit
+            }).execute()
+            
+            return response.data if response.data else []
+            
+        except Exception as e:
+            logger.error(f"Error recommending tags for artwork {artwork_id}: {e}")
+            return []
 
     
         

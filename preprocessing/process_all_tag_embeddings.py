@@ -5,9 +5,6 @@ Usage:
     python preprocessing/process_all_tag_embeddings.py
 """
 
-import sys
-sys.path.insert(0, 'C:\\Users\\Dieter\\OneDrive - UGent\\Development\\KMSKB_Software\\Fabritius-NG')
-
 from backend.supabase_client import SupabaseClient
 from backend.llms import LLMClient
 from loguru import logger
