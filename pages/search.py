@@ -201,6 +201,7 @@ def page():
     logger.info("Loading Search page")
     
     # Tab-specific state: Each tab gets unique controller to isolate pipelines and preserve state across navigation
+    # Note: This allows one to return to a previous page with the search results intact.
     # Can't use app.storage.tab because controller contains non-serializable UI references and methods
     if 'tab_id' not in app.storage.browser:
         app.storage.browser['tab_id'] = str(uuid.uuid4())

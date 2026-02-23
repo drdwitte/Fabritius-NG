@@ -598,6 +598,8 @@ exit  # Back to root
 # If new environment variables were added
 nano /opt/Fabritius-NG/.env
 # Add/update variables, save and exit
+# WARNING: server host is 0.0.0.0 not 127.0.0.1 (localhost laptop)
+# WARNING: FABRITIUS_BASE_PATH must be set! (uncomment
 ```
 
 **6. Restart the service:**
@@ -615,6 +617,8 @@ ss -tulpn | grep 1234  # Replace with your port
 
 # View recent logs
 journalctl -u fabritius-ng -n 30 --no-pager
+# Or
+tail -f /var/log/fabritius-ng-error.log
 
 # Test in browser
 # Open: http://hensor.ilabt.imec.be/fabritius/

@@ -20,8 +20,8 @@ def show_artwork_detail(artwork_data):
     """
     logger.info(f"Navigating to detail view for artwork: {artwork_data.get('inventory')}")
     
-    # Store artwork data in detail module's page_state with source
-    detail.page_state.set_artwork(artwork_data, source='search')
+    # Store artwork data in detail controller via accessor function
+    detail.set_artwork_data(artwork_data, source='search')
     
     # Navigate to detail route
     ui.navigate.to(routes.ROUTE_DETAIL)

@@ -30,6 +30,15 @@ class SupabaseClient:
         # Try FABRITIUS_ prefix first, fallback to direct name
         self.url = os.getenv("FABRITIUS_SUPABASE_URL") or os.getenv("SUPABASE_URL")
         self.key = os.getenv("FABRITIUS_SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        
+        if not self.url or not self.key:
+            raise ValueError(
+                "Supabase credentials not configured. Please set environment variables:\n"
+                "  - FABRITIUS_SUPABASE_URL (or SUPABASE_URL)\n"
+                "  - FABRITIUS_SUPABASE_KEY (or SUPABASE_SERVICE_ROLE_KEY)\n"
+                "Create a .env file in the project root with these values."
+            )
+        
         self.client: Client = create_client(self.url, self.key)
     
     # Analytics / Insights methods (mockup data for now)
@@ -519,13 +528,38 @@ class SupabaseClient:
             ]
         """
         try:
-            # Call stored procedure through RPC
-            response = self.client.rpc('recommend_iconographic_tags', {
-                'artwork_id_param': artwork_id,
+            # First, get the artwork's embedding
+            artwork = self.client.table("fabritius")\
+                .select("caption_embedding")\
+                .eq('inventarisnummer', artwork_id)\
+                .limit(1)\
+                .execute()
+            
+            if not artwork.data or not artwork.data[0].get('caption_embedding'):
+                logger.warning(f"No embedding found for artwork {artwork_id}")
+                return []
+            
+            artwork_embedding = artwork.data[0]['caption_embedding']
+            
+            # Use existing match_iconographic_tags function with the embedding
+            response = self.client.rpc('match_iconographic_tags', {
+                'query_embedding': artwork_embedding,
                 'match_count': limit
             }).execute()
             
-            return response.data if response.data else []
+            if not response.data:
+                return []
+            
+            # Format results to match expected output
+            return [
+                {
+                    'tag_id': tag['id'],
+                    'label': tag['label'],
+                    'similarity': tag['similarity'],
+                    'description': tag.get('description')
+                }
+                for tag in response.data
+            ]
             
         except Exception as e:
             logger.error(f"Error recommending tags for artwork {artwork_id}: {e}")
@@ -646,6 +680,33 @@ class SupabaseClient:
             print(f"Fout bij toevoegen tag: {e}")
             return False
         
+    def get_tags_for_artwork(self, inventarisnummer: str) -> list:
+        """
+        Get all tags assigned to an artwork.
+        
+        Args:
+            inventarisnummer: Inventory number of the artwork
+            
+        Returns:
+            List of dicts with keys: tag_id, label, provenance
+            Example: [
+                {'tag_id': 123, 'label': 'man', 'provenance': 'AI'},
+                {'tag_id': 456, 'label': 'vrouw', 'provenance': 'EXPERT'}
+            ]
+        """
+        try:
+            response = (
+                self.client
+                .table("artwork_with_tags_view")
+                .select("tag_id, label, provenance")
+                .eq("inventarisnummer", inventarisnummer)
+                .execute()
+            )
+            return response.data if response.data else []
+        except Exception as e:
+            logger.error(f"Error fetching tags for artwork {inventarisnummer}: {e}")
+            return []
+    
     def get_artworks_with_tag(self, inventarisnummers: list, tag_label: str) -> set:
         """
         Geeft een set van inventarisnummers waarvoor de opgegeven tag al bestaat.
