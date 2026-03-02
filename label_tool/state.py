@@ -41,6 +41,8 @@ class LabelState:
     label_name: Optional[str] = None         # Current label being validated
     label_definition: Optional[str] = None   # Label definition (if available)
     label_id: Optional[str] = None           # Label ID in thesaurus system
+    tag_id: Optional[int] = None             # Tag ID in database tags table (if exists)
+    tag_source: Optional[str] = None         # Tag source: FABRITIUS, CUSTOM, etc.
     
     # Cached thesaurus terms for autocomplete
     cached_thesaurus_terms: List[str] = field(default_factory=list)  # Terms from selected thesaurus
@@ -79,6 +81,8 @@ class LabelState:
     def clear_label(self):
         """Clear the current label and all results."""
         self.label_name = None
+        self.tag_id = None
+        self.tag_source = None
         self.label_definition = None
         self.label_id = None
         self.clear_all_results()

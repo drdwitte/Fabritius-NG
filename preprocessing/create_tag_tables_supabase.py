@@ -162,6 +162,8 @@ logger.debug("Currently have {} artwork-tag links".format(len(artwork_tag_links)
 # Nu de tabellen vullen in supabase: tags  
 df = pd.DataFrame.from_dict(tag_PK_map, orient='index').reset_index()
 df.columns = ['label', 'id']
+# Add source column - all tags from FABRITIUS dataset have source='FABRITIUS'
+df['source'] = 'FABRITIUS'
 response = supabase.table("tags").upsert(df.to_dict(orient="records")).execute()
 
 # Nu de tabellen vullen in supabase: artwork-tags  

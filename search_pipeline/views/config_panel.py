@@ -229,20 +229,114 @@ def render_dynamic_filter_ui(params_schema, existing_params, operator_id, op_nam
                             min_val = param_config.get('min', 0)
                             max_val = param_config.get('max', 100)
                             
-                            with ui.row().classes('w-full gap-2'):
-                                filter_data['inputs']['min'] = ui.number(
-                                    label='From',
-                                    value=default[0] if default and default[0] is not None else min_val,
-                                    min=min_val,
-                                    max=max_val
-                                ).classes('flex-1')
+                            # Determine if this is a year range (for special handling)
+                            is_year_range = param_name and 'year' in param_name.lower()
+                            
+                            # Get initial values (None means no filter applied)
+                            initial_min = default[0] if default and default[0] is not None else None
+                            initial_max = default[1] if default and default[1] is not None else None
+                            
+                            # Show current selection label
+                            range_label = ui.label().classes('text-sm text-gray-600 mb-2')
+                            
+                            def update_range_label():
+                                min_input = filter_data['inputs']['min']
+                                max_input = filter_data['inputs']['max']
+                                if min_input.value is not None and max_input.value is not None:
+                                    range_label.text = f'Selected: {int(min_input.value)} - {int(max_input.value)}'
+                                elif min_input.value is not None:
+                                    range_label.text = f'From: {int(min_input.value)}'
+                                elif max_input.value is not None:
+                                    range_label.text = f'To: {int(max_input.value)}'
+                                else:
+                                    range_label.text = 'No filter (all years)'
+                            
+                            # Use slider for year ranges for better UX
+                            if is_year_range:
+                                # Create a range slider
+                                slider_min = initial_min if initial_min is not None else min_val
+                                slider_max = initial_max if initial_max is not None else max_val
                                 
-                                filter_data['inputs']['max'] = ui.number(
-                                    label='To',
-                                    value=default[1] if default and default[1] is not None else max_val,
+                                range_slider = ui.slider(
                                     min=min_val,
-                                    max=max_val
-                                ).classes('flex-1')
+                                    max=max_val,
+                                    value={'min': slider_min, 'max': slider_max},
+                                    step=1
+                                ).props('range label-always').classes('w-full mb-2')
+                                
+                                # Number inputs below slider for precise control
+                                with ui.row().classes('w-full gap-2 items-end'):
+                                    filter_data['inputs']['min'] = ui.number(
+                                        label='From Year',
+                                        value=initial_min,
+                                        min=min_val,
+                                        max=max_val,
+                                        step=1,
+                                        precision=0
+                                    ).classes('flex-1')
+                                    
+                                    filter_data['inputs']['max'] = ui.number(
+                                        label='To Year',
+                                        value=initial_max,
+                                        min=min_val,
+                                        max=max_val,
+                                        step=1,
+                                        precision=0
+                                    ).classes('flex-1')
+                                    
+                                    # Clear button to reset year filter
+                                    def clear_year_filter():
+                                        filter_data['inputs']['min'].value = None
+                                        filter_data['inputs']['max'].value = None
+                                        range_slider.value = {'min': min_val, 'max': max_val}
+                                        update_range_label()
+                                    
+                                    ui.button(
+                                        icon='clear',
+                                        on_click=clear_year_filter
+                                    ).props('flat dense').classes('mb-1').tooltip('Clear year filter')
+                                
+                                # Sync slider with inputs
+                                def sync_slider_to_inputs(e):
+                                    min_val_input = filter_data['inputs']['min'].value
+                                    max_val_input = filter_data['inputs']['max'].value
+                                    if min_val_input is not None and max_val_input is not None:
+                                        range_slider.value = {'min': min_val_input, 'max': max_val_input}
+                                    update_range_label()
+                                
+                                def sync_inputs_to_slider(e):
+                                    slider_val = range_slider.value
+                                    if isinstance(slider_val, dict):
+                                        filter_data['inputs']['min'].value = slider_val.get('min')
+                                        filter_data['inputs']['max'].value = slider_val.get('max')
+                                    update_range_label()
+                                
+                                filter_data['inputs']['min'].on('update:model-value', sync_slider_to_inputs)
+                                filter_data['inputs']['max'].on('update:model-value', sync_slider_to_inputs)
+                                range_slider.on('update:model-value', sync_inputs_to_slider)
+                                
+                            else:
+                                # Regular range (not year) - just use number inputs
+                                with ui.row().classes('w-full gap-2'):
+                                    filter_data['inputs']['min'] = ui.number(
+                                        label='From',
+                                        value=initial_min if initial_min is not None else min_val,
+                                        min=min_val,
+                                        max=max_val
+                                    ).classes('flex-1')
+                                    
+                                    filter_data['inputs']['max'] = ui.number(
+                                        label='To',
+                                        value=initial_max if initial_max is not None else max_val,
+                                        min=min_val,
+                                        max=max_val
+                                    ).classes('flex-1')
+                                
+                                filter_data['inputs']['min'].on('update:model-value', lambda: update_range_label())
+                                filter_data['inputs']['max'].on('update:model-value', lambda: update_range_label())
+                            
+                            # Initial label update
+                            update_range_label()
                 
                 # Initial input field
                 update_input_field()
@@ -323,7 +417,17 @@ def render_dynamic_filter_ui(params_schema, existing_params, operator_id, op_nam
                 min_input = filter_data['inputs'].get('min')
                 max_input = filter_data['inputs'].get('max')
                 if min_input and max_input:
-                    params[param_name] = [min_input.value, max_input.value]
+                    # Get values, keeping None if the input is empty/None
+                    min_value = min_input.value
+                    max_value = max_input.value
+                    # Only add to params if at least one value is set
+                    if min_value is not None or max_value is not None:
+                        # Convert to int for year ranges (step=1) to avoid .0 display
+                        step = param_config.get('step', 1)
+                        if step == 1 or step is None:
+                            min_value = int(min_value) if min_value is not None else None
+                            max_value = int(max_value) if max_value is not None else None
+                        params[param_name] = [min_value, max_value]
             elif param_type == 'image':
                 # Store image data as base64 string
                 filename = filter_data['inputs'].get('filename')
@@ -380,9 +484,7 @@ def render_dynamic_filter_ui(params_schema, existing_params, operator_id, op_nam
         logger.info(f"Applied params for {op_name}: {log_params}")
         ui.notify(f'{op_name} updated with {len(params)} filters!')
         close_panel()
-        # Re-render pipeline in a new context using app.storage
-        with pipeline_area:
-            render_pipeline_func()
+        render_pipeline_func()
     
     with ui.row().classes('w-full justify-end gap-2 mt-6'):
         ui.button('Cancel', on_click=close_panel).props('flat color=grey')
@@ -590,8 +692,7 @@ def render_static_form_ui(params_schema, existing_params, operator_id, op_name, 
         logger.info(f"Applied params for {op_name}: {log_params}")
         ui.notify(f'{op_name} configured successfully!')
         close_panel()
-        with pipeline_area:
-            render_pipeline_func()
+        render_pipeline_func()
     
     with ui.row().classes('w-full justify-end gap-2 mt-6'):
         ui.button('Cancel', on_click=close_panel).props('flat color=grey')

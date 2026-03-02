@@ -20,7 +20,10 @@ class SupabaseClient:
             'inventarisnummer',
             'beschrijving_kunstenaar',
             'beschrijving_titel',
-            'imageOpacLink'
+            'imageOpacLink',
+            'creatie_vroegste_datum',
+            'creatie_laatste_datum',
+            'beschrijving_creatiedatum'
         ],
     }
     
@@ -404,7 +407,8 @@ class SupabaseClient:
                 query = query.ilike('beschrijving_titel', f'%{title}%')
                 logger.debug(f"Applied title filter: {title}")
             
-            # Year range filter (assuming beschrijving_datering contains year info)
+            # Year range filter using numeric date fields
+            # Uses creatie_vroegste_datum and creatie_laatste_datum for accurate range filtering
             if year_range := search_params.get('year_range'):
                 min_year, max_year = year_range
                 # Ensure integers (convert if needed)
@@ -412,14 +416,24 @@ class SupabaseClient:
                     min_year = int(min_year)
                 if max_year is not None:
                     max_year = int(max_year)
-                # Note: beschrijving_datering might be text like "1642" or "ca. 1640-1650"
-                # For now, we'll do text-based filtering with ILIKE
-                # TODO: Consider parsing years from text for more accurate filtering
-                if min_year is not None:
-                    query = query.gte('beschrijving_datering', str(min_year))
-                if max_year is not None:
-                    query = query.lte('beschrijving_datering', str(max_year))
-                logger.debug(f"Applied year range filter: {min_year} - {max_year}")
+                
+                # Filter logic:
+                # - min_year: artwork's latest date >= min_year (artwork created on or after min_year)
+                # - max_year: artwork's earliest date <= max_year (artwork created on or before max_year)
+                # This ensures artworks with date ranges (e.g., 1650-1700) are correctly included
+                if min_year is not None and max_year is not None:
+                    # Both min and max: artwork range must overlap with search range
+                    query = query.gte('creatie_laatste_datum', min_year).lte('creatie_vroegste_datum', max_year)
+                    logger.debug(f"Applied year range filter: {min_year} - {max_year}")
+                elif min_year is not None:
+                    # Only min: artwork must be created on or after min_year
+                    query = query.gte('creatie_laatste_datum', min_year)
+                    logger.debug(f"Applied min year filter: >= {min_year}")
+                elif max_year is not None:
+                    # Only max: artwork must be created on or before max_year
+                    query = query.lte('creatie_vroegste_datum', max_year)
+                    logger.debug(f"Applied max year filter: <= {max_year}")
+
             
             # Source filter (multiselect on collection source)
             if source := search_params.get('source'):
@@ -616,17 +630,36 @@ class SupabaseClient:
     def fetch_artworks_by_label_and_prov(self, label, provenance, limit=20) -> List[Dict]:
         """
         Haal artworks die matchen met een bepaald label en een bepaalde provenance hebben.
+        
+        Args:
+            label: Label name to search for
+            provenance: Single provenance string OR list of provenance values
+            limit: Maximum number of results
+            
+        Returns:
+            List of artwork dicts
         """
-        #OLD: #.in_("label", labels) (multiselect)
-        query = (
-            self.client
-            .table(self.VIEW_ARTWORK_WITH_TAGS)
-            .select("*")
-            .eq("label", label)
-            .eq("provenance", provenance)
-            .limit(limit)
-            .execute()
-        )
+        # Support both single provenance and list of provenances
+        if isinstance(provenance, list):
+            query = (
+                self.client
+                .table(self.VIEW_ARTWORK_WITH_TAGS)
+                .select("*")
+                .eq("label", label)
+                .in_("provenance", provenance)  # Multiple provenances
+                .limit(limit)
+                .execute()
+            )
+        else:
+            query = (
+                self.client
+                .table(self.VIEW_ARTWORK_WITH_TAGS)
+                .select("*")
+                .eq("label", label)
+                .eq("provenance", provenance)  # Single provenance
+                .limit(limit)
+                .execute()
+            )
         return query.data if query.data else []
     
 
@@ -662,22 +695,55 @@ class SupabaseClient:
                 logger.error(f"Fout bij verwijderen tag '{tag}' van werk '{inventarisnummer}': {e}")
         return True
     
-    def insert_new_tag(self, label: str) -> bool:
+    def get_tag_by_label(self, label: str) -> Optional[Dict]:
         """
-        Voeg een nieuw label toe aan de tags-tabel.
-        Returns True als succesvol, anders False.
+        Get a tag by its label name.
+        
+        Args:
+            label: Tag label to search for
+            
+        Returns:
+            Dict with tag data (id, label, source) or None if not found
         """
         try:
             response = (
                 self.client
                 .table(self.TABLE_TAGS)
-                .insert({"label": label})
+                .select("id, label, source")
+                .eq("label", label)
+                .limit(1)
                 .execute()
             )
-            return bool(response.data)
+            return response.data[0] if response.data else None
         except Exception as e:
-            # Optioneel: log de fout
-            print(f"Fout bij toevoegen tag: {e}")
+            logger.error(f"Error fetching tag by label '{label}': {e}")
+            return None
+    
+    def insert_new_tag(self, label: str, source: str = "CUSTOM") -> bool:
+        """
+        Voeg een nieuw label toe aan de tags-tabel.
+        
+        Args:
+            label: Tag label text
+            source: Source thesaurus (FABRITIUS, CUSTOM, ICONCLASS, AAT, GARNIER)
+                   Default: CUSTOM (user-created tags)
+        
+        Returns:
+            True als succesvol, anders False.
+        """
+        try:
+            response = (
+                self.client
+                .table(self.TABLE_TAGS)
+                .insert({"label": label, "source": source})
+                .execute()
+            )
+            if response.data:
+                logger.info(f"Created new tag '{label}' with source '{source}'")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error creating tag '{label}': {e}")
             return False
         
     def get_tags_for_artwork(self, inventarisnummer: str) -> list:
@@ -768,21 +834,58 @@ class SupabaseClient:
         
 
 
-    def promote_artwork_tag_link(self, inventarisnummer: str, tag_id: int) -> bool:
+    def update_artwork_tag_provenance(
+        self, 
+        inventarisnummer: str, 
+        tag_id: int, 
+        from_provenance: str, 
+        to_provenance: str
+    ) -> bool:
         """
-        Zet de provenance van een bestaande artwork-tag link op 'EXPERT'.
+        Update the provenance of an artwork-tag link.
+        
+        Args:
+            inventarisnummer: Artwork inventory number
+            tag_id: Tag ID
+            from_provenance: Current provenance (AI, HUMAN, EXPERT, FABRITIUS)
+            to_provenance: New provenance (AI, HUMAN, EXPERT)
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Note: FABRITIUS provenance records are protected and cannot be modified.
         """
+        # Guard: Prevent modifying FABRITIUS records
+        if from_provenance == "FABRITIUS":
+            logger.error(f"Cannot modify FABRITIUS provenance for artwork {inventarisnummer}, tag {tag_id}")
+            return False
+        
         try:
             response = (
                 self.client
                 .table(self.TABLE_ARTWORK_TAGS)
-                .update({"provenance": "EXPERT", "updated_at": "now()"})
+                .update({"provenance": to_provenance})
                 .eq("artwork_id", inventarisnummer)
                 .eq("tag_id", tag_id)
-                .eq("provenance", "AI")
+                .eq("provenance", from_provenance)
                 .execute()
             )
-            return bool(response.data)
+            
+            if response.data:
+                logger.info(f"Updated provenance {from_provenance} → {to_provenance} for artwork {inventarisnummer}, tag {tag_id}")
+                return True
+            else:
+                logger.warning(f"No records updated for artwork {inventarisnummer}, tag {tag_id}")
+                return False
+                
         except Exception as e:
-            print(f"Fout bij promoten artwork-tag link: {e}")
+            logger.error(f"Error updating provenance: {e}")
             return False
+    
+    def promote_artwork_tag_link(self, inventarisnummer: str, tag_id: int) -> bool:
+        """
+        DEPRECATED: Use update_artwork_tag_provenance instead.
+        Zet de provenance van een bestaande artwork-tag link op 'EXPERT'.
+        """
+        logger.warning("promote_artwork_tag_link is deprecated, use update_artwork_tag_provenance")
+        return self.update_artwork_tag_provenance(inventarisnummer, tag_id, "AI", "EXPERT")

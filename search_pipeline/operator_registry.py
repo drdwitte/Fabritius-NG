@@ -274,7 +274,7 @@ def _register_metadata_filter():
             .description('Filter by creation year range')
             .default([None, None])
             .min_value(1400)
-            .max_value(2024)
+            .max_value(2030)
         )
         .param('result_mode',
             ParamBuilder('select')

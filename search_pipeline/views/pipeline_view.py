@@ -96,11 +96,19 @@ def render_pipeline(controller):
                                 # For image type, show filename only (not base64 data)
                                 display_value = f'📷 {param_value["filename"]}'
                             elif isinstance(param_value, list):
-                                if all(isinstance(x, (int, float)) for x in param_value):
+                                if all(isinstance(x, (int, float, type(None))) for x in param_value):
                                     # Convert to int for year ranges to avoid .0 display
                                     val0 = int(param_value[0]) if param_value[0] is not None else None
                                     val1 = int(param_value[1]) if param_value[1] is not None else None
-                                    display_value = f"{val0} - {val1}"
+                                    # Format range nicely, handling None values
+                                    if val0 is not None and val1 is not None:
+                                        display_value = f"{val0} - {val1}"
+                                    elif val0 is not None:
+                                        display_value = f"≥ {val0}"
+                                    elif val1 is not None:
+                                        display_value = f"≤ {val1}"
+                                    else:
+                                        display_value = "not set"
                                 else:
                                     display_value = ', '.join(str(v) for v in param_value[:3])
                                     if len(param_value) > 3:

@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Callable, Optional
 from loguru import logger
 import routes
 from pages import detail
+from backend.supabase_client import SupabaseClient
 
 
 def show_artwork_detail(artwork_data):
@@ -18,13 +19,26 @@ def show_artwork_detail(artwork_data):
     Args:
         artwork_data: Dictionary containing artwork information
     """
-    logger.info(f"Navigating to detail view for artwork: {artwork_data.get('id', artwork_data.get('inventory'))}")
+    inventory = artwork_data.get('inventarisnummer') or artwork_data.get('inventory') or artwork_data.get('id')
+    logger.info(f"Navigating to detail view for artwork: {inventory}")
     
-    # Store artwork data in detail controller via accessor function
-    detail.set_artwork_data(artwork_data, source='label')
-    
-    # Navigate to detail route
-    ui.navigate.to(routes.ROUTE_DETAIL)
+    # Fetch full artwork data from database (same as detail page search does)
+    try:
+        client = SupabaseClient()
+        full_artwork_data = client.get_artwork_by_inventory(inventory)
+        
+        if full_artwork_data:
+            # Store full artwork data in detail controller
+            detail.set_artwork_data(full_artwork_data, source='label')
+            
+            # Navigate to detail route
+            ui.navigate.to(routes.ROUTE_DETAIL)
+        else:
+            ui.notify(f'Artwork not found: {inventory}', type='negative')
+            logger.error(f"Could not find artwork with inventory: {inventory}")
+    except Exception as e:
+        logger.error(f"Error loading artwork details for {inventory}: {e}")
+        ui.notify(f'Error loading artwork details', type='negative')
 
 
 def render_result_grid_view(

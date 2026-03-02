@@ -96,8 +96,22 @@ class LabelPageController:
         if term:
             logger.info(f"Term selected from autocomplete: {term}")
             self.state.label_name = term
-            logger.info(f"State updated: label_name = '{term}'")
-            ui.notify(f'Selected label: {term}', type='positive')
+            
+            # Check if tag already exists in database
+            from backend.supabase_client import SupabaseClient
+            db = SupabaseClient()
+            existing_tag = db.get_tag_by_label(term)
+            
+            if existing_tag:
+                self.state.tag_id = existing_tag['id']
+                self.state.tag_source = existing_tag.get('source', 'UNKNOWN')
+                logger.info(f"Label '{term}' exists in database: tag_id={self.state.tag_id}, source={self.state.tag_source}")
+                ui.notify(f'Selected label: {term} (exists as {self.state.tag_source})', type='positive')
+            else:
+                self.state.tag_id = None
+                self.state.tag_source = None
+                logger.info(f"Label '{term}' does not exist in database yet (will be created as CUSTOM)")
+                ui.notify(f'Selected label: {term} (new label)', type='positive')
             
             # Re-render UI
             self.update_search_bar()
@@ -190,6 +204,19 @@ class LabelPageController:
             self.state.label_name = result['name']
             self.state.label_definition = result.get('definition', '')
             self.state.label_id = result.get('id')
+            
+            # Check if tag exists in database and update state
+            from backend.supabase_client import SupabaseClient
+            db = SupabaseClient()
+            existing_tag = db.get_tag_by_label(result['name'])
+            if existing_tag:
+                self.state.tag_id = existing_tag['id']
+                self.state.tag_source = existing_tag.get('source', 'CUSTOM')
+                logger.info(f"Tag already exists: tag_id={self.state.tag_id}, source={self.state.tag_source}")
+            else:
+                self.state.tag_id = None
+                self.state.tag_source = None
+                logger.info(f"Tag does not exist yet in database")
             
             logger.info(f"Label '{name}' created and set as current label")
             ui.notify(f'Created label: {name}')
@@ -420,12 +447,20 @@ class LabelPageController:
         source_results.results = remaining_artworks
         source_results.total_count = len(remaining_artworks)
         
-        # Update target box (add promoted to the beginning - prepend)
-        target_results.results = promoted_artworks + target_results.results
+        # Filter out duplicates: check if artwork already exists in target box
+        existing_ids_in_target = {a.get('id', a.get('inventory_number')) for a in target_results.results}
+        new_artworks = [a for a in promoted_artworks if a.get('id', a.get('inventory_number')) not in existing_ids_in_target]
+        
+        if len(new_artworks) < len(promoted_artworks):
+            skipped = len(promoted_artworks) - len(new_artworks)
+            logger.info(f"Skipped {skipped} duplicate(s) already in target box '{to_box_key}'")
+        
+        # Update target box (add new promoted to the beginning - prepend)
+        target_results.results = new_artworks + target_results.results
         target_results.total_count = len(target_results.results)
         
         # Debug logging
-        promoted_ids = [a.get('id', a.get('inventory_number')) for a in promoted_artworks]
+        promoted_ids = [a.get('id', a.get('inventory_number')) for a in new_artworks]
         logger.info(f"Promoted artwork IDs (in order): {promoted_ids}")
         
         # Show full list with titles
@@ -439,10 +474,28 @@ class LabelPageController:
         for item in full_list:
             logger.info(f"  {item}")
         
-        # TODO: Backend call to update validation levels
-        # self.label_service.update_validation_level(selected_ids, to_box_key)
+        # Backend call to update validation levels in database (only for new artworks)
+        success_count, failed_count, protected_count = self._update_provenance_in_db(
+            new_artworks,  # Only process artworks that aren't duplicates
+            from_box_key, 
+            to_box_key,
+            is_promotion=True
+        )
         
-        ui.notify(f'Promoted {len(selected_ids)} artworks to {to_box_key}', type='positive')
+        # Calculate duplicates that were skipped
+        duplicate_count = len(promoted_artworks) - len(new_artworks)
+        
+        if duplicate_count > 0 and failed_count > 0:
+            ui.notify(f'Promoted {success_count}, skipped {duplicate_count} duplicates, failed {failed_count}, protected {protected_count}', type='warning')
+        elif duplicate_count > 0:
+            ui.notify(f'Promoted {success_count} artworks (skipped {duplicate_count} duplicates)', type='info')
+        elif failed_count > 0:
+            ui.notify(f'Promoted {success_count}, failed {failed_count}, protected {protected_count}', type='warning')
+        elif protected_count > 0:
+            ui.notify(f'Promoted {success_count} artworks (skipped {protected_count} FABRITIUS tags)', type='info')
+        else:
+            ui.notify(f'Promoted {success_count} artworks to {to_box_key}', type='positive')
+        
         self.state.deselect_all_artworks(from_box_key)
         
         # Force complete UI refresh to ensure correct order
@@ -493,16 +546,163 @@ class LabelPageController:
         source_results.results = remaining_artworks
         source_results.total_count = len(remaining_artworks)
         
-        # Update target box (add demoted to the beginning)
-        target_results.results = demoted_artworks + target_results.results
+        # Filter out duplicates: check if artwork already exists in target box
+        existing_ids_in_target = {a.get('id', a.get('inventory_number')) for a in target_results.results}
+        new_artworks = [a for a in demoted_artworks if a.get('id', a.get('inventory_number')) not in existing_ids_in_target]
+        
+        if len(new_artworks) < len(demoted_artworks):
+            skipped = len(demoted_artworks) - len(new_artworks)
+            logger.info(f"Skipped {skipped} duplicate(s) already in target box '{to_box_key}'")
+        
+        # Update target box (add new demoted to the beginning)
+        target_results.results = new_artworks + target_results.results
         target_results.total_count = len(target_results.results)
         
-        # TODO: Backend call to update validation levels
-        # self.label_service.update_validation_level(selected_ids, to_box_key)
+        # Backend call to update validation levels in database (only for new artworks)
+        success_count, failed_count, protected_count = self._update_provenance_in_db(
+            new_artworks,  # Only process artworks that aren't duplicates
+            from_box_key,
+            to_box_key,
+            is_promotion=False
+        )
         
-        ui.notify(f'Demoted {len(selected_ids)} artworks to {to_box_key}', type='positive')
-        self.deselect_all_in_box(from_box_key)
+        # Calculate duplicates that were skipped
+        duplicate_count = len(demoted_artworks) - len(new_artworks)
+        
+        if duplicate_count > 0 and failed_count > 0:
+            ui.notify(f'Demoted {success_count}, skipped {duplicate_count} duplicates, failed {failed_count}, protected {protected_count}', type='warning')
+        elif duplicate_count > 0:
+            ui.notify(f'Demoted {success_count} artworks (skipped {duplicate_count} duplicates)', type='info')
+        elif failed_count > 0:
+            ui.notify(f'Demoted {success_count}, failed {failed_count}, protected {protected_count}', type='warning')
+        elif protected_count > 0:
+            ui.notify(f'Demoted {success_count} artworks (skipped {protected_count} FABRITIUS tags)', type='info')
+        else:
+            ui.notify(f'Demoted {success_count} artworks to {to_box_key}', type='positive')
+        
+        self.state.deselect_all_artworks(from_box_key)
         self.update_boxes()
+    
+    def _update_provenance_in_db(
+        self, 
+        artworks: list, 
+        from_box_key: str, 
+        to_box_key: str,
+        is_promotion: bool
+    ) -> tuple:
+        """
+        Update provenance in database for promoted/demoted artworks.
+        
+        Args:
+            artworks: List of artwork dicts to update
+            from_box_key: Source validation level
+            to_box_key: Target validation level
+            is_promotion: True if promoting, False if demoting
+            
+        Returns:
+            Tuple of (success_count, failed_count, protected_count)
+        """
+        from backend.supabase_client import SupabaseClient
+        
+        # Map validation levels to provenance values
+        provenance_map = {
+            VALIDATION_LEVEL_AI: "AI",
+            VALIDATION_LEVEL_HUMAN: "HUMAN",
+            VALIDATION_LEVEL_EXPERT: "EXPERT"
+        }
+        
+        db = SupabaseClient()
+        success_count = 0
+        failed_count = 0
+        protected_count = 0
+        
+        for artwork in artworks:
+            inventory_number = artwork.get('id') or artwork.get('inventory_number')
+            tag_id = artwork.get('tag_id')
+            current_provenance = artwork.get('provenance')
+            
+            # Skip if missing inventory number
+            if not inventory_number:
+                logger.warning(f"Missing inventory_number for artwork: {artwork}")
+                failed_count += 1
+                continue
+            
+            # Handle AI algorithm results (no tag_id yet, need to create)
+            if from_box_key.startswith('AI-') and not current_provenance:
+                # This is a new tag from AI algorithm results
+                to_provenance = provenance_map[to_box_key]
+                
+                # Check if we already have tag_id from state (checked during label selection)
+                if self.state.tag_id:
+                    tag_id_to_use = self.state.tag_id
+                    logger.info(f"Using cached tag_id from state: {tag_id_to_use} (source: {self.state.tag_source})")
+                else:
+                    # First, ensure the tag exists in the tags table
+                    tag_label = self.state.label_name
+                    existing_tag = db.get_tag_by_label(tag_label)
+                    
+                    if not existing_tag:
+                        # Create tag if it doesn't exist
+                        logger.info(f"Creating new tag: {tag_label}")
+                        if not db.insert_new_tag(tag_label, source="CUSTOM"):
+                            logger.error(f"Failed to create tag: {tag_label}")
+                            failed_count += 1
+                            continue
+                        existing_tag = db.get_tag_by_label(tag_label)
+                    else:
+                        # Tag already exists - log it
+                        tag_source = existing_tag.get('source', 'UNKNOWN')
+                        logger.info(f"Tag '{tag_label}' found with tag_id={existing_tag['id']}, source={tag_source}")
+                    
+                    tag_id_to_use = existing_tag['id']
+                    # Update state for future use
+                    self.state.tag_id = tag_id_to_use
+                    self.state.tag_source = existing_tag.get('source', 'CUSTOM')
+                
+                # Now create the artwork-tag link with AI provenance
+                if db.insert_artwork_tag_link(inventory_number, tag_id_to_use, to_provenance):
+                    logger.info(f"Created new tag link: {inventory_number} → {tag_label} (provenance: {to_provenance})")
+                    success_count += 1
+                else:
+                    logger.error(f"Failed to create tag link: {inventory_number}")
+                    failed_count += 1
+                continue
+            
+            # Guard: Protect FABRITIUS records
+            if current_provenance == "FABRITIUS":
+                logger.info(f"Skipping FABRITIUS tag for artwork {inventory_number} (protected)")
+                protected_count += 1
+                continue
+            
+            # For normal promote/demote operations, tag_id is required
+            if not tag_id:
+                logger.warning(f"Missing tag_id for artwork {inventory_number} (not an AI algorithm result)")
+                failed_count += 1
+                continue
+            
+            # Determine source and target provenance
+            from_provenance = current_provenance or provenance_map.get(from_box_key, "AI")
+            to_provenance = provenance_map[to_box_key]
+            
+            # Update provenance in database
+            if db.update_artwork_tag_provenance(
+                inventarisnummer=inventory_number,
+                tag_id=tag_id,
+                from_provenance=from_provenance,
+                to_provenance=to_provenance
+            ):
+                logger.info(f"Updated {inventory_number}: {from_provenance} → {to_provenance}")
+                success_count += 1
+            else:
+                logger.error(f"Failed to update {inventory_number}")
+                failed_count += 1
+        
+        logger.info(
+            f"Database update complete: {success_count} success, "
+            f"{failed_count} failed, {protected_count} protected"
+        )
+        
+        return success_count, failed_count, protected_count
     
     def delete_selected(self, box_key: str):
         """Delete labels for selected artworks."""
@@ -529,7 +729,8 @@ class LabelPageController:
         # Get box results
         box_results = self.state.get_box_results(box_key)
         
-        # Remove deleted artworks from results
+        # Prepare list for backend deletion
+        items_to_delete = []
         remaining_artworks = []
         deleted_count = 0
         
@@ -538,19 +739,29 @@ class LabelPageController:
             if artwork_id not in selected_ids:
                 remaining_artworks.append(artwork)
             else:
+                # Collect info for backend deletion
+                items_to_delete.append({
+                    'inventarisnummer': artwork_id,
+                    'tag': self.state.label_name,
+                    'tag_id': artwork.get('tag_id')
+                })
                 deleted_count += 1
         
-        # Update box results
+        # Backend call to delete labels from database
+        try:
+            from backend.supabase_client import SupabaseClient
+            db = SupabaseClient()
+            db.delete_tag_from_artworks(items_to_delete)
+            logger.info(f"Deleted {deleted_count} tag-artwork links from database")
+        except Exception as e:
+            logger.error(f"Failed to delete labels from database: {e}")
+            ui.notify(f'Failed to delete labels: {e}', type='negative')
+            dialog.close()
+            return
+        
+        # Update box results (remove from UI)
         box_results.results = remaining_artworks
         box_results.total_count = len(remaining_artworks)
-        
-        # TODO: Backend call to delete labels
-        # try:
-        #     self.label_service.delete_labels(list(selected_ids), self.state.label_name)
-        # except Exception as e:
-        #     logger.error(f"Failed to delete labels: {e}")
-        #     ui.notify(f'Failed to delete labels: {e}', type='negative')
-        #     return
         
         ui.notify(f'Deleted {deleted_count} labels', type='positive')
         self.state.deselect_all_artworks(box_key)

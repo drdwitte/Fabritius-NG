@@ -67,6 +67,7 @@ class DetailPageController:
         self.current_tags = []  # Existing Fabritius tags
         self.recommended_tags = []  # AI-recommended tags
         self.hidden_tag_ids = set()  # IDs of tags user accepted/rejected (to hide them)
+        self.visible_recommendations_count = 10  # How many recommendations to show initially
         logger.info("DetailPageController initialized")
     
     def set_artwork(self, artwork_data: dict, source: str = None) -> None:
@@ -79,6 +80,7 @@ class DetailPageController:
         self.current_artwork = artwork_data
         self.source_page = source
         self.hidden_tag_ids = set()  # Reset hidden tags on new artwork
+        self.visible_recommendations_count = 10  # Reset to initial count
         logger.info(f"Artwork set: {artwork_data.get('inventarisnummer', 'Unknown')} from {source}")
         
         # Load tags for this artwork
@@ -108,8 +110,8 @@ class DetailPageController:
             self.current_tags = client.get_tags_for_artwork(inventory)
             logger.info(f"Loaded {len(self.current_tags)} existing tags for artwork {inventory}")
             
-            # Get recommended tags
-            self.recommended_tags = client.recommend_tags_for_artwork(inventory, limit=10)
+            # Get recommended tags (fetch more than we initially show)
+            self.recommended_tags = client.recommend_tags_for_artwork(inventory, limit=50)
             logger.info(f"Loaded {len(self.recommended_tags)} recommended tags for artwork {inventory}")
             
         except Exception as e:
@@ -119,6 +121,11 @@ class DetailPageController:
     
     def accept_tag(self, tag_id: int, label: str) -> None:
         """Accept a recommended tag and add it to the artwork.
+        
+        This follows the same logic as label tool promote:
+        - Recommended tag → provenance "AI" in database
+        - Tag is created if it doesn't exist
+        - No other promote/demote operations allowed from detail page
         
         Args:
             tag_id: ID from iconographic_tags (used for UI tracking)
@@ -134,27 +141,65 @@ class DetailPageController:
         try:
             client = SupabaseClient()
             
-            # Get the correct tag_id from the 'tags' table (not iconographic_tags)
-            # artwork-tags has a foreign key to tags.id, not iconographic_tags.id
-            correct_tag_id = client.get_tagID_by_label(label)
+            # Step 1: Check if tag exists in 'tags' table (artwork-tags references this table)
+            existing_tag = client.get_tag_by_label(label)
             
-            if correct_tag_id is None:
-                ui.notify(f'Tag not found in tags table: {label}', type='negative')
-                logger.error(f"Tag '{label}' exists in iconographic_tags but not in tags table")
+            if not existing_tag:
+                # Step 2: Create tag if it doesn't exist
+                logger.info(f"Creating new tag: {label}")
+                if not client.insert_new_tag(label, source="CUSTOM"):
+                    ui.notify(f'Failed to create tag: {label}', type='negative')
+                    logger.error(f"Failed to create tag '{label}'")
+                    return
+                # Fetch the newly created tag
+                existing_tag = client.get_tag_by_label(label)
+                if not existing_tag:
+                    ui.notify(f'Tag creation failed: {label}', type='negative')
+                    return
+            
+            correct_tag_id = existing_tag['id']
+            logger.info(f"Using tag_id {correct_tag_id} for label '{label}'")
+            
+            # Step 3: Check if this artwork-tag link already exists
+            # This prevents duplicate errors if user clicks accept multiple times
+            existing_tags_for_artwork = client.get_tags_for_artwork(inventory)
+            already_has_tag = any(
+                t.get('tag_id') == correct_tag_id 
+                for t in existing_tags_for_artwork
+            )
+            
+            if already_has_tag:
+                ui.notify(f'Tag already assigned: {label}', type='info')
+                logger.info(f"Tag '{label}' already assigned to artwork {inventory}")
+                # Still hide from recommendations
+                self.hidden_tag_ids.add(tag_id)
+                self.render_content()
                 return
             
-            success = client.insert_artwork_tag_link(inventory, correct_tag_id, provenance='AI')
+            # Step 4: Insert artwork-tag link with provenance="AI"
+            success = client.insert_artwork_tag_link(
+                inventarisnummer=inventory, 
+                tag_id=correct_tag_id, 
+                provenance='AI'  # Recommended tags always become AI provenance
+            )
             
             if success:
-                # Add to current tags (use correct_tag_id for consistency)
-                self.current_tags.append({'tag_id': correct_tag_id, 'label': label, 'provenance': 'AI'})
-                # Hide from recommendations (use iconographic tag_id for UI tracking)
+                # Add to current tags display
+                self.current_tags.append({
+                    'tag_id': correct_tag_id, 
+                    'label': label, 
+                    'provenance': 'AI'
+                })
+                # Hide from recommendations
                 self.hidden_tag_ids.add(tag_id)
-                ui.notify(f'Added tag: {label}', type='positive')
+                ui.notify(f'✓ Added tag: {label} (AI)', type='positive')
+                logger.info(f"Added tag '{label}' to artwork {inventory} with provenance=AI")
                 # Refresh UI
                 self.render_content()
             else:
                 ui.notify(f'Failed to add tag: {label}', type='negative')
+                logger.error(f"Failed to insert artwork-tag link for {label}")
+                
         except Exception as e:
             logger.error(f"Error accepting tag {label}: {e}")
             ui.notify(f'Error adding tag: {str(e)}', type='negative')
@@ -171,6 +216,55 @@ class DetailPageController:
         logger.info(f"Rejected tag: {label}")
         # Refresh UI
         self.render_content()
+    
+    def load_more_recommendations(self) -> None:
+        """Load 10 more tag recommendations."""
+        self.visible_recommendations_count += 10
+        logger.info(f"Loading more recommendations, now showing {self.visible_recommendations_count}")
+        # Refresh UI
+        self.render_content()
+    
+    def remove_tag(self, tag_id: int, label: str) -> None:
+        """Remove a tag from the artwork.
+        
+        Args:
+            tag_id: ID of the tag to remove (from 'tags' table)
+            label: Label of the tag (for display)
+        """
+        if not self.current_artwork:
+            return
+        
+        inventory = self.current_artwork.get('inventarisnummer')
+        if not inventory:
+            return
+        
+        try:
+            client = SupabaseClient()
+            
+            # Delete the artwork-tag link
+            success = client.delete_tag_from_artworks([{
+                'inventarisnummer': inventory,
+                'tag': label,
+                'tag_id': tag_id
+            }])
+            
+            if success or success is None:  # delete_tag_from_artworks doesn't return bool, it logs
+                # Remove from current tags list
+                self.current_tags = [
+                    t for t in self.current_tags 
+                    if not (t.get('tag_id') == tag_id and t.get('label') == label)
+                ]
+                ui.notify(f'✓ Removed tag: {label}', type='positive')
+                logger.info(f"Removed tag '{label}' from artwork {inventory}")
+                # Refresh UI
+                self.render_content()
+            else:
+                ui.notify(f'Failed to remove tag: {label}', type='negative')
+                logger.error(f"Failed to remove tag '{label}' from artwork {inventory}")
+                
+        except Exception as e:
+            logger.error(f"Error removing tag {label}: {e}")
+            ui.notify(f'Error removing tag: {str(e)}', type='negative')
     
     def search_artwork(self, inventory: str) -> None:
         """Search for artwork by inventory number.
@@ -411,33 +505,52 @@ class DetailPageController:
             return
         
         with ui.column().classes('w-full gap-6'):
-            # FABRITIUS TAGS - Existing tags
-            ui.label('FABRITIUS TAGS').classes('text-lg font-bold text-gray-800 uppercase')
+            # ASSIGNED TAGS - Current tags with provenance indicators
+            ui.label('ASSIGNED TAGS').classes('text-lg font-bold text-gray-800 uppercase')
             
             if self.current_tags:
                 with ui.row().classes('flex-wrap gap-2'):
                     for tag_info in self.current_tags:
+                        tag_id = tag_info.get('tag_id')
                         label = tag_info.get('label', 'Unknown')
                         provenance = tag_info.get('provenance', 'N/A')
                         
-                        # Color based on provenance
+                        # Color and icon based on provenance (consistent with label tool)
                         if provenance == 'EXPERT':
                             color = 'green'
+                            icon = 'verified'
+                            tooltip = 'Expert validated'
                         elif provenance == 'AI':
                             color = 'blue'
+                            icon = 'psychology'
+                            tooltip = 'AI generated'
+                        elif provenance == 'HUMAN':
+                            color = 'purple'
+                            icon = 'person'
+                            tooltip = 'Human validated'
+                        elif provenance == 'FABRITIUS':
+                            color = 'gray'
+                            icon = 'inventory_2'
+                            tooltip = 'Original FABRITIUS tag'
                         else:
                             color = 'gray'
+                            icon = 'local_offer'
+                            tooltip = 'Unknown source'
                         
-                        ui.chip(
-                            label,
-                            color=color,
-                            icon='local_offer'
-                        ).props('outline')
+                        # Render tag with delete button
+                        with ui.row().classes('items-center gap-1 px-3 py-1 border rounded-full').style(f'border-color: var(--q-{color});'):
+                            ui.icon(icon).classes(f'text-sm text-{color}')
+                            ui.label(label).classes(f'text-sm text-{color}')
+                            ui.button(
+                                icon='close',
+                                on_click=lambda tid=tag_id, lbl=label: self.remove_tag(tid, lbl)
+                            ).props(f'flat round dense size=xs').classes('w-5 h-5 -mr-1').tooltip('Remove tag')
             else:
                 ui.label('No tags assigned yet').classes('text-gray-500 italic')
             
-            # RECOMMENDED TAGS - AI suggestions
+            # RECOMMENDED TAGS - AI suggestions (always become provenance="AI" when accepted)
             ui.label('RECOMMENDED TAGS').classes('text-lg font-bold text-gray-800 uppercase mt-6')
+            ui.label('Accept to add as AI provenance tags').classes('text-sm text-gray-600 italic')
             
             # Filter out hidden tags
             visible_recommendations = [
@@ -445,9 +558,13 @@ class DetailPageController:
                 if tag.get('tag_id') not in self.hidden_tag_ids
             ]
             
-            if visible_recommendations:
+            # Limit to visible count
+            displayed_recommendations = visible_recommendations[:self.visible_recommendations_count]
+            has_more = len(visible_recommendations) > self.visible_recommendations_count
+            
+            if displayed_recommendations:
                 with ui.row().classes('flex-wrap gap-2'):
-                    for tag_info in visible_recommendations:
+                    for tag_info in displayed_recommendations:
                         tag_id = tag_info.get('tag_id')
                         label = tag_info.get('label', 'Unknown')
                         similarity = tag_info.get('similarity', 0)
@@ -456,19 +573,28 @@ class DetailPageController:
                             # Tag label with similarity score
                             with ui.column().classes('flex-grow gap-0'):
                                 ui.label(label).classes('text-sm font-medium')
-                                ui.label(f'{similarity:.2%}').classes('text-xs text-gray-500')
+                                ui.label(f'{similarity:.2%} match').classes('text-xs text-gray-500')
                             
                             # Accept button (checkmark)
                             ui.button(
                                 icon='check',
                                 on_click=lambda tid=tag_id, lbl=label: self.accept_tag(tid, lbl)
-                            ).props(f'flat round color=green').classes('w-8 h-8')
+                            ).props(f'flat round color=green').classes('w-8 h-8').tooltip('Accept as AI tag')
                             
                             # Reject button (cross)
                             ui.button(
                                 icon='close',
                                 on_click=lambda tid=tag_id, lbl=label: self.reject_tag(tid, lbl)
-                            ).props(f'flat round color=red').classes('w-8 h-8')
+                            ).props(f'flat round color=red').classes('w-8 h-8').tooltip('Reject')
+                
+                # Load More button if there are more recommendations
+                if has_more:
+                    with ui.row().classes('w-full justify-center mt-3'):
+                        ui.button(
+                            'Load More Tags',
+                            icon='expand_more',
+                            on_click=lambda: self.load_more_recommendations()
+                        ).props(f'outline color={settings.primary_color}').classes('text-sm')
             else:
                 ui.label('No more recommendations available').classes('text-gray-500 italic')
 

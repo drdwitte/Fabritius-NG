@@ -13,11 +13,7 @@ from loguru import logger
 from .state import LabelState, ValidationResults
 from search_pipeline.operators import execute_semantic_search
 from config import settings
-from .mock_data import (
-    AI_VALIDATED_PAINTINGS, 
-    HUMAN_VALIDATED_PAINTINGS, 
-    EXPERT_VALIDATED_PAINTINGS
-)
+from backend.supabase_client import SupabaseClient
 
 
 class ValidationEngine:
@@ -188,17 +184,69 @@ class ValidationEngine:
         Returns:
             List of labeled artworks
         """
-        # TODO: Implement actual database query
-        # This should:
-        # 1. Query database WHERE label = label_name AND validation_level = level
-        # 2. Return results
-        
-        # Use mock data from mock_data.py (15 paintings per level)
-        # Map the constants (AI, HUMAN, EXPERT) to the correct mock data
-        validated_paintings = {
-            "AI": [dict(p, validation_level=validation_level) for p in AI_VALIDATED_PAINTINGS],
-            "HUMAN": [dict(p, validation_level=validation_level) for p in HUMAN_VALIDATED_PAINTINGS],
-            "EXPERT": [dict(p, validation_level=validation_level) for p in EXPERT_VALIDATED_PAINTINGS],
+        # Map validation level to database provenance field
+        # AI → provenance "AI"
+        # HUMAN → provenance ["FABRITIUS", "HUMAN"] (show BOTH original and new human tags)
+        # EXPERT → provenance "EXPERT"
+        provenance_map = {
+            "AI": "AI",
+            "HUMAN": ["FABRITIUS", "HUMAN"],  # HUMAN layer shows both!
+            "EXPERT": "EXPERT"
         }
         
-        return validated_paintings.get(validation_level, [])
+        provenance = provenance_map.get(validation_level)
+        if not provenance:
+            logger.warning(f"Unknown validation level: {validation_level}")
+            return []
+        
+        try:
+            logger.info(f"Fetching {validation_level} validated data for label '{label_name}' with provenance '{provenance}'")
+            db = SupabaseClient()
+            
+            # Query artworks with this label and provenance (read-only, no modifications)
+            artworks = db.fetch_artworks_by_label_and_prov(
+                label=label_name,
+                provenance=provenance,  # Can be string or list
+                limit=50  # Limit to 50 results per layer
+            )
+            
+            logger.info(f"Found {len(artworks)} artworks with label '{label_name}' and provenance '{provenance}'")
+            
+            # If no results found, return empty list (don't use mock data)
+            if not artworks:
+                logger.info(f"No {validation_level} validated data found for label '{label_name}'")
+                return []
+            
+            # Map database fields to UI format
+            formatted_results = []
+            for artwork in artworks:
+                # Construct full image URL
+                image_path = artwork.get('imageOpacLink', '')
+                if image_path and not image_path.startswith('http'):
+                    image_url = f"{settings.image_base_url}{image_path}" if image_path.startswith('/') else f"{settings.image_base_url}/{image_path}"
+                else:
+                    image_url = image_path
+                
+                formatted_results.append({
+                    'id': artwork.get('inventarisnummer', 'N/A'),
+                    'title': artwork.get('beschrijving_titel', 'Untitled'),
+                    'artist': artwork.get('beschrijving_kunstenaar', 'Unknown Artist'),
+                    'date': artwork.get('beschrijving_datering', 'N/A'),
+                    'inventory': artwork.get('inventarisnummer', 'N/A'),
+                    'image_url': image_url,
+                    'validation_level': validation_level,
+                    'provenance': artwork.get('provenance'),  # Use actual provenance from DB
+                    'tag_id': artwork.get('tag_id')  # Needed for promote/demote
+                })
+            
+            logger.info(f"Returning {len(formatted_results)} formatted results for {validation_level}")
+            return formatted_results
+            
+        except Exception as e:
+            logger.error(f"Error fetching {validation_level} validated data with provenance '{provenance}': {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Return empty list on error (no mock data fallback)
+            logger.warning(f"Returning empty list due to database error")
+            return []
