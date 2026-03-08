@@ -632,20 +632,22 @@ class SupabaseClient:
         Haal artworks die matchen met een bepaald label en een bepaalde provenance hebben.
         
         Args:
-            label: Label name to search for
+            label: Label name to search for (case-insensitive)
             provenance: Single provenance string OR list of provenance values
             limit: Maximum number of results
             
         Returns:
             List of artwork dicts
         """
+        logger.debug(f"fetch_artworks_by_label_and_prov: label='{label}', provenance={provenance}, limit={limit}")
+        
         # Support both single provenance and list of provenances
         if isinstance(provenance, list):
             query = (
                 self.client
                 .table(self.VIEW_ARTWORK_WITH_TAGS)
                 .select("*")
-                .eq("label", label)
+                .ilike("label", label)  # Case-insensitive matching
                 .in_("provenance", provenance)  # Multiple provenances
                 .limit(limit)
                 .execute()
@@ -655,11 +657,13 @@ class SupabaseClient:
                 self.client
                 .table(self.VIEW_ARTWORK_WITH_TAGS)
                 .select("*")
-                .eq("label", label)
+                .ilike("label", label)  # Case-insensitive matching
                 .eq("provenance", provenance)  # Single provenance
                 .limit(limit)
                 .execute()
             )
+        
+        logger.debug(f"Query returned {len(query.data) if query.data else 0} results")
         return query.data if query.data else []
     
 
@@ -710,7 +714,7 @@ class SupabaseClient:
                 self.client
                 .table(self.TABLE_TAGS)
                 .select("id, label, source")
-                .eq("label", label)
+                .ilike("label", label)
                 .limit(1)
                 .execute()
             )
@@ -784,7 +788,7 @@ class SupabaseClient:
             .table("artwork_with_tags_view")
             .select("inventarisnummer")
             .in_("inventarisnummer", inventarisnummers)
-            .eq("label", tag_label)
+            .ilike("label", tag_label)
             .execute()
         )
         if response.data:
@@ -800,7 +804,7 @@ class SupabaseClient:
             self.client
             .table(self.TABLE_TAGS)
             .select("id")
-            .eq("label", label)
+            .ilike("label", label)
             .limit(1)
             .execute()
         )

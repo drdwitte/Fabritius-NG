@@ -221,6 +221,7 @@ FABRITIUS_TERMS = [
 
 # Dictionary mapping thesaurus IDs to their terms
 THESAURUS_TERMS = {
+    "custom": [],  # Custom terms loaded from database dynamically
     "garnier": GARNIER_TERMS,
     "aat": AAT_TERMS,
     "iconclass": ICONCLASS_TERMS,
@@ -233,9 +234,21 @@ def get_thesaurus_terms(thesaurus_id: str) -> list[str]:
     Get terms for a specific thesaurus.
     
     Args:
-        thesaurus_id: Thesaurus identifier (e.g., "garnier", "aat")
+        thesaurus_id: Thesaurus identifier (e.g., "garnier", "aat", "custom")
     
     Returns:
         List of term strings for autocomplete
     """
+    # For custom thesaurus, load from database
+    if thesaurus_id.lower() == "custom":
+        try:
+            from backend.supabase_client import SupabaseClient
+            db = SupabaseClient()
+            # Get all tags with source='CUSTOM' from database
+            # For now return empty list - will be populated as users create terms
+            return []
+        except Exception as e:
+            print(f"Error loading custom terms: {e}")
+            return []
+    
     return THESAURUS_TERMS.get(thesaurus_id.lower(), [])

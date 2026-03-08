@@ -194,11 +194,20 @@ class LabelPageController:
         logger.info(f"Creating new label: '{name}' in {self.state.selected_thesaurus}")
         
         try:
-            # Get thesaurus service
-            label_service = LabelService(self.state.selected_thesaurus.lower())
-            
-            # Create label
-            result = await label_service.create_label(name, definition or '')
+            # If no thesaurus selected, create as custom label
+            if not self.state.selected_thesaurus:
+                logger.info(f"No thesaurus selected, creating as custom label")
+                # Just set the label name and definition directly
+                result = {
+                    'name': name,
+                    'definition': definition or '',
+                    'id': None  # No thesaurus ID
+                }
+            else:
+                # Get thesaurus service
+                label_service = LabelService(self.state.selected_thesaurus.lower())
+                # Create label
+                result = await label_service.create_label(name, definition or '')
             
             # Update state
             self.state.label_name = result['name']

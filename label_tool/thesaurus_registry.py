@@ -22,6 +22,13 @@ class ThesaurusInfo:
 # Available thesauri
 AVAILABLE_THESAURI = [
     ThesaurusInfo(
+        id="custom",
+        display_name="Custom",
+        description="Custom user-defined terms (open thesaurus)",
+        supports_search=True,
+        supports_create=True,
+    ),
+    ThesaurusInfo(
         id="garnier",
         display_name="Garnier",
         description="Garnier thesaurus for art historical terminology",
